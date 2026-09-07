@@ -9,9 +9,14 @@
 **阶段 0：立项与仓库初始化** ｜ 下一节点：**09-08 确定演示区与数据**
 
 ## 当前阻塞点
-- [ ] GitHub Personal Access Token 未提供 → 仓库尚未推送远端
+- [ ] GitHub Personal Access Token 未提供 → 仓库尚未推送远端（拿到后跑 `bash scripts/push_to_github.sh`）
 - [ ] 演示区（广西某市/县）未确定
 - [ ] 真实数据源 vs 样例数据未定
+
+## Git 信息
+- 远端：`https://github.com/wojiushilyj/AI_urban_plan`（公开，待建）
+- 提交身份：`wojiushilyj <7012750@qq.com>`
+- 推送脚本：`scripts/push_to_github.sh`（用 GH_TOKEN 建仓并推送，推送后自动从远端 URL 中抹除令牌）
 
 ## 待定池（9-14 前不实现）
 - 三维（Cesium）可视化
