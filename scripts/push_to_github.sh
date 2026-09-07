@@ -18,20 +18,25 @@ if [[ -z "${GH_TOKEN:-}" ]]; then
 fi
 
 echo "==> 1/4 创建远端公开仓库 ${USER}/${REPO}"
-HTTP=$(curl -s -o /tmp/gh_resp.json -w "%{http_code}" \
+RESP=".gh_resp.json"
+# 注意：curl 失败时用 || echo 兜底，避免 set -e 让脚本在拿到状态码前就中断
+HTTP=$(curl -s -o "$RESP" -w "%{http_code}" \
   -H "Authorization: Bearer ${GH_TOKEN}" \
   -H "Accept: application/vnd.github+json" \
   -d "{\"name\":\"${REPO}\",\"private\":false,\"description\":\"国土 AI 竞赛｜多场景智慧选址系统（2026 AI+国土空间治理创新应用大赛 · 数智场景赛道）\"}" \
-  "https://api.github.com/user/repos")
+  "https://api.github.com/user/repos" || echo "000")
 
 if [[ "$HTTP" == "201" ]]; then
   echo "    创建成功"
 elif [[ "$HTTP" == "422" ]]; then
   echo "    仓库已存在，直接推送"
 else
-  echo "    失败（HTTP $HTTP）："; cat /tmp/gh_resp.json; exit 1
+  echo "    失败（HTTP $HTTP）"
+  [[ -f "$RESP" ]] && cat "$RESP"
+  rm -f "$RESP"
+  exit 1
 fi
-rm -f /tmp/gh_resp.json
+rm -f "$RESP"
 
 echo "==> 2/4 绑定远端（临时带 Token）"
 git remote remove origin 2>/dev/null || true

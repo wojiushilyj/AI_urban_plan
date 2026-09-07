@@ -60,3 +60,6 @@ Thumbs.db
 # ---- 日志 ----
 logs/
 *.log
+
+# ---- 脚本临时产物 ----
+.gh_resp.json
