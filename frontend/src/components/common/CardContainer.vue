@@ -9,7 +9,7 @@ defineProps<{
 <template>
   <section class="card-container">
     <header v-if="title || $slots.actions" class="card-container__header">
-      <div>
+      <div class="card-container__title-wrap">
         <h3 class="card-container__title">{{ title }}</h3>
         <p v-if="subtitle" class="card-container__subtitle">{{ subtitle }}</p>
       </div>
@@ -38,6 +38,23 @@ defineProps<{
   gap: var(--gap-sm);
   padding: 12px var(--gap-lg);
   border-bottom: 1px solid var(--border-lighter);
+}
+.card-container__title-wrap {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  padding-left: 10px;
+}
+.card-container__title-wrap::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 14px;
+  background: var(--brand, var(--el-color-primary));
+  border-radius: 2px;
 }
 .card-container__title {
   font-size: 15px;

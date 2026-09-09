@@ -14,7 +14,10 @@ function onLevel(id: string, v: string | number | boolean | undefined): void {
 
 <template>
   <div class="preference-card">
-    <div class="preference-card__title">选址偏好设置（影响权重）</div>
+    <div class="preference-card__title">
+      <span>选址偏好设置</span>
+      <span class="preference-card__title-note">（影响权重）</span>
+    </div>
     <div class="preference-card__body">
       <div v-for="f in FACTOR_DEFS" :key="f.id" class="preference-card__row">
         <span class="preference-card__label">{{ f.name }}</span>
@@ -43,12 +46,30 @@ function onLevel(id: string, v: string | number | boolean | undefined): void {
   overflow: hidden;
 }
 .preference-card__title {
-  padding: 10px var(--gap-lg);
+  position: relative;
+  padding: 10px var(--gap-lg) 10px calc(var(--gap-lg) + 10px);
   font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
   letter-spacing: 0.2px;
   border-bottom: 1px solid var(--border-lighter);
+}
+.preference-card__title::before {
+  content: '';
+  position: absolute;
+  left: var(--gap-lg);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 14px;
+  background: var(--brand, var(--el-color-primary));
+  border-radius: 2px;
+}
+.preference-card__title-note {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  letter-spacing: 0;
 }
 .preference-card__body {
   padding: var(--gap-sm) var(--gap-lg) var(--gap-md);
