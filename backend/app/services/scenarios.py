@@ -1,7 +1,7 @@
 """
-选址场景模板（S1–S5）。
+选址场景模板（按国民经济行业门类划分，共 10 大门类）。
 
-设计原则：一套引擎，多套参数模板。新增场景 = 新增一个模板，不改算法代码。
+设计原则：一套引擎，多套参数模板。新增行业门类 = 新增一个模板，不改算法代码。
 字段说明：
   constraints : 硬约束，布尔一票否决。buffer_m 为缓冲距离（米），0 表示几何本身即为禁区。
   factors     : 软因子，direction=+1 越大越好，-1 越小越好，2 为区间型。
@@ -10,83 +10,11 @@
 from fastapi import HTTPException
 
 SCENARIOS: dict[str, dict] = {
-    "S1": {
-        "id": "S1",
-        "name": "建设项目用地选址",
-        "category": "要素保障",
-        "description": "为拟建项目寻找合规、集约、低成本的可用地块。主打场景，9-15 前必须完整可跑。",
-        "constraints": [
-            {"id": "prime_farmland", "name": "永久基本农田", "buffer_m": 0, "required": True},
-            {"id": "eco_redline", "name": "生态保护红线", "buffer_m": 0, "required": True},
-            {"id": "river_range", "name": "河湖管理范围", "buffer_m": 30, "required": True},
-            {"id": "geohazard", "name": "地质灾害高易发区", "buffer_m": 100, "required": True},
-            {"id": "builtup", "name": "已建设用地", "buffer_m": 0, "required": True},
-            {"id": "road_protect", "name": "高速/铁路安全保护距离", "buffer_m": 100, "required": False},
-            {"id": "cultural_relic", "name": "文物保护单位", "buffer_m": 50, "required": False},
-        ],
-        "factors": [
-            {"id": "slope", "name": "坡度", "direction": -1, "unit": "度"},
-            {"id": "dist_road", "name": "距现状道路距离", "direction": -1, "unit": "米"},
-            {"id": "in_udb", "name": "位于城镇开发边界内", "direction": 1, "unit": "0/1"},
-            {"id": "parcel_shape", "name": "地块规整度", "direction": 1, "unit": "0-1"},
-            {"id": "building_density", "name": "现状建筑密度（拆迁成本代理）", "direction": -1, "unit": "0-1"},
-        ],
-        "weights_ahp": {
-            "slope": 0.25, "dist_road": 0.25, "in_udb": 0.25,
-            "parcel_shape": 0.15, "building_density": 0.10,
-        },
-    },
-    "S2": {
-        "id": "S2",
-        "name": "公共服务设施选址",
-        "category": "格局优化",
-        "description": "学校/医院/养老/消防等设施，目标为覆盖最大化与公平性，输出点位与服务范围。",
-        "constraints": [
-            {"id": "prime_farmland", "name": "永久基本农田", "buffer_m": 0, "required": True},
-            {"id": "eco_redline", "name": "生态保护红线", "buffer_m": 0, "required": True},
-            {"id": "geohazard", "name": "地质灾害高易发区", "buffer_m": 100, "required": True},
-            {"id": "pollution_source", "name": "噪声/污染源", "buffer_m": 200, "required": True},
-        ],
-        "factors": [
-            {"id": "pop_density", "name": "人口密度", "direction": 1, "unit": "人/km²"},
-            {"id": "service_gap", "name": "同类设施服务缺口", "direction": 1, "unit": "0-1"},
-            {"id": "accessibility", "name": "路网可达性", "direction": 1, "unit": "0-1"},
-            {"id": "dist_transit", "name": "距公交站点距离", "direction": -1, "unit": "米"},
-            {"id": "dist_same_type", "name": "距同类设施距离（避免过度集中）", "direction": 2, "unit": "米"},
-        ],
-        "weights_ahp": {
-            "pop_density": 0.30, "service_gap": 0.25, "accessibility": 0.20,
-            "dist_transit": 0.15, "dist_same_type": 0.10,
-        },
-    },
-    "S3": {
-        "id": "S3",
-        "name": "新能源与充换电设施选址",
-        "category": "格局优化",
-        "description": "光伏/风电/储能/充电站落位，输出可装机容量估算。",
-        "constraints": [
-            {"id": "eco_redline", "name": "生态保护红线", "buffer_m": 0, "required": True},
-            {"id": "prime_farmland", "name": "永久基本农田", "buffer_m": 0, "required": True},
-            {"id": "flood_area", "name": "行洪区", "buffer_m": 0, "required": True},
-            {"id": "airport_clear", "name": "机场净空/限高区", "buffer_m": 0, "required": True},
-        ],
-        "factors": [
-            {"id": "solar_wind", "name": "辐射量/风功率密度", "direction": 1, "unit": "kWh/m²·a"},
-            {"id": "aspect", "name": "坡向适宜性", "direction": 1, "unit": "0-1"},
-            {"id": "slope", "name": "坡度", "direction": -1, "unit": "度"},
-            {"id": "dist_grid", "name": "并网点距离", "direction": -1, "unit": "米"},
-            {"id": "dist_road", "name": "道路可达性", "direction": -1, "unit": "米"},
-        ],
-        "weights_ahp": {
-            "solar_wind": 0.35, "aspect": 0.15, "slope": 0.15,
-            "dist_grid": 0.20, "dist_road": 0.15,
-        },
-    },
-    "S4": {
-        "id": "S4",
-        "name": "矿业权/砂石土矿选址",
-        "category": "矿业发展",
-        "description": "资源禀赋与生态约束的平衡，输出候选区块与环境敏感点核查表。",
+    "B": {
+        "id": "B",
+        "name": "采矿业",
+        "category": "采矿业",
+        "description": "面向矿产资源开发（砂石土矿、金属/非金属矿）的矿业权区块选址，平衡资源禀赋与生态约束。",
         "constraints": [
             {"id": "eco_redline", "name": "生态保护红线", "buffer_m": 0, "required": True},
             {"id": "prime_farmland", "name": "永久基本农田", "buffer_m": 0, "required": True},
@@ -95,36 +23,228 @@ SCENARIOS: dict[str, dict] = {
             {"id": "residential", "name": "居民点安全距离", "buffer_m": 300, "required": True},
         ],
         "factors": [
-            {"id": "resource_potential", "name": "资源潜力", "direction": 1, "unit": "0-1"},
-            {"id": "overburden", "name": "覆盖层厚度", "direction": -1, "unit": "米"},
-            {"id": "dist_road", "name": "运输距离", "direction": -1, "unit": "米"},
-            {"id": "restore_difficulty", "name": "生态修复难度", "direction": -1, "unit": "0-1"},
+            {"id": "urban_planning", "name": "城市规划", "direction": 1, "unit": "0-1"},
+            {"id": "transport", "name": "交通物流", "direction": 1, "unit": "0-1"},
+            {"id": "industry", "name": "产业协同", "direction": 1, "unit": "0-1"},
+            {"id": "infrastructure", "name": "基础配套", "direction": 1, "unit": "0-1"},
+            {"id": "cost", "name": "建造成本", "direction": -1, "unit": "0-1"},
         ],
         "weights_ahp": {
-            "resource_potential": 0.40, "overburden": 0.15,
-            "dist_road": 0.25, "restore_difficulty": 0.20,
+            "urban_planning": 0.2, "transport": 0.2, "industry": 0.2,
+            "infrastructure": 0.2, "cost": 0.2,
         },
     },
-    "S5": {
-        "id": "S5",
-        "name": "生态修复/补充耕地选址",
-        "category": "生态修复/耕地保护",
-        "description": "找出最值得修、最容易修、修完效益最大的地块，输出修复优先序。",
+    "C1": {
+        "id": "C1",
+        "name": "制造业（消费品）",
+        "category": "制造业",
+        "description": "食品、纺织服装、家具、家电、文体用品等面向终端消费的轻工制造，劳动力密集、贴近市场。",
         "constraints": [
-            {"id": "eco_redline_core", "name": "生态保护红线核心区", "buffer_m": 0, "required": True},
-            {"id": "primary_forest", "name": "原生林草", "buffer_m": 0, "required": True},
+            {"id": "prime_farmland", "name": "永久基本农田", "buffer_m": 0, "required": True},
+            {"id": "eco_redline", "name": "生态保护红线", "buffer_m": 0, "required": True},
+            {"id": "river_range", "name": "河湖管理范围", "buffer_m": 30, "required": True},
+            {"id": "road_protect", "name": "高速/铁路安全保护距离", "buffer_m": 100, "required": False},
         ],
         "factors": [
-            {"id": "degradation", "name": "生态退化程度", "direction": 1, "unit": "0-1"},
-            {"id": "soil_pollution", "name": "土壤污染程度", "direction": 1, "unit": "0-1"},
-            {"id": "contiguity", "name": "集中连片度", "direction": 1, "unit": "0-1"},
-            {"id": "slope_treatable", "name": "坡度可治理性", "direction": 1, "unit": "0-1"},
-            {"id": "water_availability", "name": "水源保障", "direction": 1, "unit": "0-1"},
-            {"id": "corridor_link", "name": "生态廊道连通性", "direction": 1, "unit": "0-1"},
+            {"id": "urban_planning", "name": "城市规划", "direction": 1, "unit": "0-1"},
+            {"id": "transport", "name": "交通物流", "direction": 1, "unit": "0-1"},
+            {"id": "industry", "name": "产业协同", "direction": 1, "unit": "0-1"},
+            {"id": "infrastructure", "name": "基础配套", "direction": 1, "unit": "0-1"},
+            {"id": "cost", "name": "建造成本", "direction": -1, "unit": "0-1"},
         ],
         "weights_ahp": {
-            "degradation": 0.25, "soil_pollution": 0.15, "contiguity": 0.20,
-            "slope_treatable": 0.15, "water_availability": 0.10, "corridor_link": 0.15,
+            "urban_planning": 0.2, "transport": 0.2, "industry": 0.2,
+            "infrastructure": 0.2, "cost": 0.2,
+        },
+    },
+    "C2": {
+        "id": "C2",
+        "name": "制造业（原材料与中间品）",
+        "category": "制造业",
+        "description": "钢铁、有色、化工、建材、造纸等重化工与基础材料制造，环境敏感、需远离居民点并具备防护距离。",
+        "constraints": [
+            {"id": "prime_farmland", "name": "永久基本农田", "buffer_m": 0, "required": True},
+            {"id": "eco_redline", "name": "生态保护红线", "buffer_m": 0, "required": True},
+            {"id": "residential", "name": "居民点安全距离", "buffer_m": 500, "required": True},
+            {"id": "water_source", "name": "饮用水源保护区", "buffer_m": 0, "required": True},
+            {"id": "river_range", "name": "河湖管理范围", "buffer_m": 50, "required": True},
+            {"id": "pollution_source", "name": "噪声/污染源防护", "buffer_m": 200, "required": False},
+        ],
+        "factors": [
+            {"id": "urban_planning", "name": "城市规划", "direction": 1, "unit": "0-1"},
+            {"id": "transport", "name": "交通物流", "direction": 1, "unit": "0-1"},
+            {"id": "industry", "name": "产业协同", "direction": 1, "unit": "0-1"},
+            {"id": "infrastructure", "name": "基础配套", "direction": 1, "unit": "0-1"},
+            {"id": "cost", "name": "建造成本", "direction": -1, "unit": "0-1"},
+        ],
+        "weights_ahp": {
+            "urban_planning": 0.2, "transport": 0.2, "industry": 0.2,
+            "infrastructure": 0.2, "cost": 0.2,
+        },
+    },
+    "C3": {
+        "id": "C3",
+        "name": "制造业（装备设备）",
+        "category": "制造业",
+        "description": "机械、汽车、电子设备、船舶、航空航天等装备制造，用地规模大、物流与产业链配套要求高。",
+        "constraints": [
+            {"id": "prime_farmland", "name": "永久基本农田", "buffer_m": 0, "required": True},
+            {"id": "eco_redline", "name": "生态保护红线", "buffer_m": 0, "required": True},
+            {"id": "river_range", "name": "河湖管理范围", "buffer_m": 30, "required": True},
+            {"id": "road_protect", "name": "高速/铁路安全保护距离", "buffer_m": 100, "required": False},
+        ],
+        "factors": [
+            {"id": "urban_planning", "name": "城市规划", "direction": 1, "unit": "0-1"},
+            {"id": "transport", "name": "交通物流", "direction": 1, "unit": "0-1"},
+            {"id": "industry", "name": "产业协同", "direction": 1, "unit": "0-1"},
+            {"id": "infrastructure", "name": "基础配套", "direction": 1, "unit": "0-1"},
+            {"id": "cost", "name": "建造成本", "direction": -1, "unit": "0-1"},
+        ],
+        "weights_ahp": {
+            "urban_planning": 0.2, "transport": 0.2, "industry": 0.2,
+            "infrastructure": 0.2, "cost": 0.2,
+        },
+    },
+    "D": {
+        "id": "D",
+        "name": "电力、热力、燃气及水生产和供应业",
+        "category": "能源与公用事业",
+        "description": "电厂、变电站、供热/燃气设施、水厂及污水厂等公用设施，安全防护距离大、邻避效应强。",
+        "constraints": [
+            {"id": "eco_redline", "name": "生态保护红线", "buffer_m": 0, "required": True},
+            {"id": "prime_farmland", "name": "永久基本农田", "buffer_m": 0, "required": True},
+            {"id": "residential", "name": "居民点安全距离", "buffer_m": 500, "required": True},
+            {"id": "water_source", "name": "饮用水源保护区", "buffer_m": 0, "required": True},
+            {"id": "flood_area", "name": "行洪区", "buffer_m": 0, "required": True},
+            {"id": "airport_clear", "name": "机场净空/限高区", "buffer_m": 0, "required": True},
+        ],
+        "factors": [
+            {"id": "urban_planning", "name": "城市规划", "direction": 1, "unit": "0-1"},
+            {"id": "transport", "name": "交通物流", "direction": 1, "unit": "0-1"},
+            {"id": "industry", "name": "产业协同", "direction": 1, "unit": "0-1"},
+            {"id": "infrastructure", "name": "基础配套", "direction": 1, "unit": "0-1"},
+            {"id": "cost", "name": "建造成本", "direction": -1, "unit": "0-1"},
+        ],
+        "weights_ahp": {
+            "urban_planning": 0.2, "transport": 0.2, "industry": 0.2,
+            "infrastructure": 0.2, "cost": 0.2,
+        },
+    },
+    "E": {
+        "id": "E",
+        "name": "建筑业",
+        "category": "建筑业",
+        "description": "施工企业基地、混凝土搅拌站、预制构件厂、机械停放场等，交通便利、邻近建设热点。",
+        "constraints": [
+            {"id": "prime_farmland", "name": "永久基本农田", "buffer_m": 0, "required": True},
+            {"id": "eco_redline", "name": "生态保护红线", "buffer_m": 0, "required": True},
+            {"id": "residential", "name": "居民点安全距离（噪声扬尘）", "buffer_m": 300, "required": True},
+            {"id": "pollution_source", "name": "噪声/扬尘敏感区", "buffer_m": 200, "required": True},
+        ],
+        "factors": [
+            {"id": "urban_planning", "name": "城市规划", "direction": 1, "unit": "0-1"},
+            {"id": "transport", "name": "交通物流", "direction": 1, "unit": "0-1"},
+            {"id": "industry", "name": "产业协同", "direction": 1, "unit": "0-1"},
+            {"id": "infrastructure", "name": "基础配套", "direction": 1, "unit": "0-1"},
+            {"id": "cost", "name": "建造成本", "direction": -1, "unit": "0-1"},
+        ],
+        "weights_ahp": {
+            "urban_planning": 0.2, "transport": 0.2, "industry": 0.2,
+            "infrastructure": 0.2, "cost": 0.2,
+        },
+    },
+    "G": {
+        "id": "G",
+        "name": "交通运输、仓储和邮政业",
+        "category": "交通与物流",
+        "description": "物流园区、仓储中心、货运枢纽、快递分拨、邮政设施，紧邻高速/铁路/港口等交通节点。",
+        "constraints": [
+            {"id": "prime_farmland", "name": "永久基本农田", "buffer_m": 0, "required": True},
+            {"id": "eco_redline", "name": "生态保护红线", "buffer_m": 0, "required": True},
+            {"id": "river_range", "name": "河湖管理范围", "buffer_m": 30, "required": True},
+            {"id": "road_protect", "name": "高速/铁路安全保护距离", "buffer_m": 100, "required": False},
+        ],
+        "factors": [
+            {"id": "urban_planning", "name": "城市规划", "direction": 1, "unit": "0-1"},
+            {"id": "transport", "name": "交通物流", "direction": 1, "unit": "0-1"},
+            {"id": "industry", "name": "产业协同", "direction": 1, "unit": "0-1"},
+            {"id": "infrastructure", "name": "基础配套", "direction": 1, "unit": "0-1"},
+            {"id": "cost", "name": "建造成本", "direction": -1, "unit": "0-1"},
+        ],
+        "weights_ahp": {
+            "urban_planning": 0.2, "transport": 0.2, "industry": 0.2,
+            "infrastructure": 0.2, "cost": 0.2,
+        },
+    },
+    "I": {
+        "id": "I",
+        "name": "信息传输、软件和信息技术服务业",
+        "category": "信息技术服务",
+        "description": "数据中心、软件园、通信机房、云计算基地等，电力保障、网络基础设施与人才聚集为核心。",
+        "constraints": [
+            {"id": "prime_farmland", "name": "永久基本农田", "buffer_m": 0, "required": True},
+            {"id": "eco_redline", "name": "生态保护红线", "buffer_m": 0, "required": True},
+            {"id": "geohazard", "name": "地质灾害高易发区", "buffer_m": 100, "required": True},
+            {"id": "flood_area", "name": "行洪区", "buffer_m": 0, "required": True},
+        ],
+        "factors": [
+            {"id": "urban_planning", "name": "城市规划", "direction": 1, "unit": "0-1"},
+            {"id": "transport", "name": "交通物流", "direction": 1, "unit": "0-1"},
+            {"id": "industry", "name": "产业协同", "direction": 1, "unit": "0-1"},
+            {"id": "infrastructure", "name": "基础配套", "direction": 1, "unit": "0-1"},
+            {"id": "cost", "name": "建造成本", "direction": -1, "unit": "0-1"},
+        ],
+        "weights_ahp": {
+            "urban_planning": 0.2, "transport": 0.2, "industry": 0.2,
+            "infrastructure": 0.2, "cost": 0.2,
+        },
+    },
+    "M": {
+        "id": "M",
+        "name": "科学研究和技术服务业",
+        "category": "科技服务",
+        "description": "科研院所、实验室、检验检测、技术研发机构，环境安静、人才聚集、产学研协同。",
+        "constraints": [
+            {"id": "prime_farmland", "name": "永久基本农田", "buffer_m": 0, "required": True},
+            {"id": "eco_redline", "name": "生态保护红线", "buffer_m": 0, "required": True},
+            {"id": "pollution_source", "name": "噪声/污染源", "buffer_m": 200, "required": True},
+            {"id": "geohazard", "name": "地质灾害高易发区", "buffer_m": 100, "required": True},
+        ],
+        "factors": [
+            {"id": "urban_planning", "name": "城市规划", "direction": 1, "unit": "0-1"},
+            {"id": "transport", "name": "交通物流", "direction": 1, "unit": "0-1"},
+            {"id": "industry", "name": "产业协同", "direction": 1, "unit": "0-1"},
+            {"id": "infrastructure", "name": "基础配套", "direction": 1, "unit": "0-1"},
+            {"id": "cost", "name": "建造成本", "direction": -1, "unit": "0-1"},
+        ],
+        "weights_ahp": {
+            "urban_planning": 0.2, "transport": 0.2, "industry": 0.2,
+            "infrastructure": 0.2, "cost": 0.2,
+        },
+    },
+    "N": {
+        "id": "N",
+        "name": "水利、环境和公共设施管理业",
+        "category": "环境与公共设施",
+        "description": "污水处理、垃圾/固废处置、环卫、水利与园林绿化设施，邻避效应强、地质与安全防护要求高。",
+        "constraints": [
+            {"id": "eco_redline", "name": "生态保护红线", "buffer_m": 0, "required": True},
+            {"id": "prime_farmland", "name": "永久基本农田", "buffer_m": 0, "required": True},
+            {"id": "water_source", "name": "饮用水源保护区", "buffer_m": 0, "required": True},
+            {"id": "residential", "name": "居民点安全距离", "buffer_m": 500, "required": True},
+            {"id": "flood_area", "name": "行洪区", "buffer_m": 0, "required": True},
+            {"id": "geohazard", "name": "地质灾害高易发区", "buffer_m": 100, "required": True},
+        ],
+        "factors": [
+            {"id": "urban_planning", "name": "城市规划", "direction": 1, "unit": "0-1"},
+            {"id": "transport", "name": "交通物流", "direction": 1, "unit": "0-1"},
+            {"id": "industry", "name": "产业协同", "direction": 1, "unit": "0-1"},
+            {"id": "infrastructure", "name": "基础配套", "direction": 1, "unit": "0-1"},
+            {"id": "cost", "name": "建造成本", "direction": -1, "unit": "0-1"},
+        ],
+        "weights_ahp": {
+            "urban_planning": 0.2, "transport": 0.2, "industry": 0.2,
+            "infrastructure": 0.2, "cost": 0.2,
         },
     },
 }

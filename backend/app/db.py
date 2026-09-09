@@ -9,7 +9,7 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS scenario (
     id          TEXT PRIMARY KEY,
     name        TEXT NOT NULL,
-    category    TEXT NOT NULL,          -- 要素保障 / 格局优化 / 耕地保护 / 矿业发展 / 生态修复
+    category    TEXT NOT NULL,          -- 行业门类分类：采矿业 / 制造业 / 能源与公用事业 / 建筑业 / 交通与物流 / 信息技术服务 / 科技服务 / 环境与公共设施
     description TEXT,
     config_json TEXT NOT NULL,          -- 约束层、因子层、权重（JSON）
     updated_at  TEXT DEFAULT (datetime('now','localtime'))

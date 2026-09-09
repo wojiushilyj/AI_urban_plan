@@ -1,0 +1,87 @@
+/* 工作台网格布局（响应式：桌面三栏 → 平板收窄 → 移动端堆叠）
+ * v2 简洁蓝白：容器白底、左右面板浅色实底 */
+.workbench {
+  display: grid;
+  grid-template-rows: var(--topnav-height) 1fr var(--statusbar-height);
+  grid-template-columns: var(--left-panel-width) 1fr var(--right-panel-width);
+  grid-template-areas:
+    'top top top'
+    'left map right'
+    'status status status';
+  height: 100vh;
+  height: 100dvh;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg-base);
+}
+
+.workbench__top {
+  grid-area: top;
+  z-index: 20;
+}
+
+.workbench__left {
+  grid-area: left;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border-lighter);
+  overflow: hidden;
+}
+
+.workbench__map {
+  grid-area: map;
+  position: relative;
+  overflow: hidden;
+}
+
+.workbench__right {
+  grid-area: right;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border-lighter);
+  overflow: hidden;
+}
+
+.workbench__status {
+  grid-area: status;
+  z-index: 20;
+}
+
+/* ---- 平板（768-1279px）：左右面板收窄 ---- */
+@media (max-width: 1279px) {
+  .workbench {
+    grid-template-columns: 280px 1fr 320px;
+  }
+}
+
+/* ---- 移动端（<768px）：地图置顶，左右面板依次堆叠下方 ---- */
+@media (max-width: 767px) {
+  .workbench {
+    grid-template-rows: var(--topnav-height) 52vh 44vh 44vh var(--statusbar-height);
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'top'
+      'map'
+      'left'
+      'right'
+      'status';
+    overflow-y: auto;
+  }
+  .workbench__left {
+    border-right: none;
+    border-top: 1px solid var(--border-lighter);
+    min-height: 0;
+  }
+  .workbench__right {
+    border-left: none;
+    border-top: 1px solid var(--border-lighter);
+    min-height: 0;
+  }
+}
+
+/* ---- 竞赛模式遗留：保留变量但默认关闭 ---- */
+.workbench--contest {
+  --el-font-size-base: 16px;
+}

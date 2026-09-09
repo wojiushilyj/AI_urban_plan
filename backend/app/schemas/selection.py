@@ -4,7 +4,7 @@ from typing import Any
 
 class SelectionRequest(BaseModel):
     """选址分析请求。AOI 为 GeoJSON 几何对象，坐标系 EPSG:4490。"""
-    scenario_id: str = Field(default="S1", description="场景模板 ID，见 docs/SCENARIOS.md")
+    scenario_id: str = Field(default="B", description="行业门类模板 ID，见 docs/SCENARIOS.md")
     aoi: dict[str, Any] = Field(..., description="研究区 GeoJSON Geometry (Polygon)")
     grid_size_m: int = Field(default=30, ge=5, le=500)
     min_area_ha: float = Field(default=1.0, ge=0.1)
