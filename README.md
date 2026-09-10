@@ -117,7 +117,7 @@ AI_urban_plan/
 | 项 | 规定 |
 |---|---|
 | 存储坐标系 | **CGCS2000  geographic  → EPSG:4490**（国土空间规划法定坐标系） |
-| 投影坐标系 | **CGCS2000 / 3-degree Gauss-Kruger CM 108E → EPSG:4545**（广西适用），面积量算必须在此投影下 |
+| 投影坐标系 | **CGCS2000 / 3-degree Gauss-Kruger zone 37（CM 111E）→ EPSG:4525**（桂林临桂区适用），面积量算必须在此投影下 |
 | Web 展示 | 前端渲染用 **EPSG:3857**（Web Mercator），由 MapLibre 自动转换 |
 | 单位 | 距离一律**米**，面积一律**平方米/公顷**，禁止"度"参与量算 |
 | 精度 | 矢量坐标保留 6 位小数（度）或 2 位小数（米） |

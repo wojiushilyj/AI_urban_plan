@@ -2,11 +2,12 @@
  * 结果图层渲染（模块 5.3 / 5.2）：
  * - 适宜度热力图（网格质心点 heatmap，浅黄→橙→红）
  * - 候选地块矢量（fill 按 score 分级 + line 边界）
- * - AOI 边界、业务示意图层（三区三线等，mock 随机几何）
+ * - AOI 边界
+ * - 真实业务图层（从 /data/layers/*.geojson 懒加载渲染，见 renderGeoLayers）
  * 底图 style 切换后由调用方 reapplyAll 重挂全部图层。
  */
 import type { Map as MlMap } from 'maplibre-gl'
-import type { Feature, FeatureCollection, Point, Polygon } from 'geojson'
+import type { FeatureCollection, Polygon } from 'geojson'
 import type { CandidateParcel, SelectionResponse } from '../types/selection'
 import type { BusinessLayer } from '../store/map'
 
@@ -14,18 +15,8 @@ export interface LayerHooks {
   onParcelClick?: (parcel: CandidateParcel, lngLat: { lng: number; lat: number }) => void
 }
 
-/** 质心 */
-function centroid(poly: Polygon): [number, number] {
-  const ring = poly.coordinates[0]
-  let x = 0
-  let y = 0
-  for (let i = 0; i < ring.length - 1; i++) {
-    x += ring[i][0]
-    y += ring[i][1]
-  }
-  const n = ring.length - 1
-  return [x / n, y / n]
-}
+/** 真实 GeoJSON 数据缓存（避免底图切换时重复请求，尤其是大图层） */
+const geoCache = new Map<string, FeatureCollection>()
 
 export function useMapLayers(getMap: () => MlMap | null, hooks: LayerHooks = {}) {
   function addSource(id: string, data: unknown): void {
@@ -39,42 +30,6 @@ export function useMapLayers(getMap: () => MlMap | null, hooks: LayerHooks = {})
     const m = getMap()
     if (!m) return
     for (const id of ids) if (m.getLayer(id)) m.removeLayer(id)
-  }
-
-  /** 热力图（模块 5.3）：网格质心点集 → heatmap */
-  function renderHeat(grid: FeatureCollection<Polygon, { weight: number }>, visible: boolean): void {
-    const m = getMap()
-    if (!m) return
-    const pointFeatures = grid.features.map(
-      (f): Feature<Point, { weight: number }> => ({
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: centroid(f.geometry) },
-        properties: { weight: f.properties.weight },
-      })
-    )
-    addSource('heat-src', { type: 'FeatureCollection', features: pointFeatures })
-    removeLayers(['heat-layer'])
-    m.addLayer({
-      id: 'heat-layer',
-      type: 'heatmap',
-      source: 'heat-src',
-      layout: { visibility: visible ? 'visible' : 'none' },
-      paint: {
-        'heatmap-weight': ['interpolate', ['linear'], ['get', 'weight'], 0, 0, 60, 0.5, 100, 1],
-        'heatmap-intensity': 1.1,
-        'heatmap-radius': 26,
-        'heatmap-opacity': 0.75,
-        'heatmap-color': [
-          'interpolate', ['linear'], ['heatmap-density'],
-          0, 'rgba(235, 244, 245, 0)',
-          0.2, '#FDF3C7',
-          0.4, '#F8D477',
-          0.6, '#F5A623',
-          0.8, '#E8743B',
-          1, '#D64545',
-        ],
-      },
-    })
   }
 
   /** 候选地块矢量（模块 5.3） */
@@ -149,73 +104,83 @@ export function useMapLayers(getMap: () => MlMap | null, hooks: LayerHooks = {})
     })
   }
 
-  /** 业务示意图层（模块 5.2）：mock 半透明色块 */
-  function renderBusinessLayers(defs: BusinessLayer[]): void {
+  /** 真实业务图层（模块 5.2）：从 /data/layers/*.geojson 懒加载，首次可见时才请求数据 */
+  async function renderGeoLayers(defs: BusinessLayer[]): Promise<void> {
     const m = getMap()
     if (!m) return
-    const styleMap: Record<string, { color: string; opacity: number }> = {
-      'ly-prime-farmland': { color: '#F59E0B', opacity: 0.15 },
-      'ly-eco-redline': { color: '#EF4444', opacity: 0.15 },
-      'ly-river': { color: '#60A5FA', opacity: 0.2 },
-      'ly-road': { color: '#8A94A6', opacity: 0.35 },
-      'ly-udb': { color: '#10B981', opacity: 0.12 },
+    // 语义配色：耕地橙黄、红线红、水系蓝、绿地绿、产业橙紫、设施青、文保深红
+    const styleMap: Record<string, { color: string; opacity: number; type: 'fill' | 'circle' }> = {
+      'perm-farmland': { color: '#F59E0B', opacity: 0.35, type: 'fill' },
+      'eco-redline': { color: '#EF4444', opacity: 0.3, type: 'fill' },
+      'urban-boundary': { color: '#8B5CF6', opacity: 0.25, type: 'fill' },
+      'yellow-line': { color: '#EAB308', opacity: 0.3, type: 'fill' },
+      'blue-line': { color: '#3B82F6', opacity: 0.3, type: 'fill' },
+      'green-line': { color: '#22C55E', opacity: 0.3, type: 'fill' },
+      'industrial-land': { color: '#D97706', opacity: 0.35, type: 'fill' },
+      'regulated-industrial': { color: '#EA580C', opacity: 0.35, type: 'fill' },
+      'industrial-park': { color: '#7C3AED', opacity: 0.35, type: 'fill' },
+      'prod-service-point': { color: '#06B6D4', opacity: 0.9, type: 'circle' },
+      'prod-service-area': { color: '#0EA5E9', opacity: 0.4, type: 'fill' },
+      'cultural-relic': { color: '#DC2626', opacity: 0.5, type: 'fill' },
     }
+
     for (const def of defs) {
+      if (def.kind !== 'geojson' || !def.sourceUrl) continue
       const style = styleMap[def.id]
       if (!style) continue
       const srcId = `${def.id}-src`
       const layerId = `${def.id}-layer`
-      if (!m.getSource(srcId)) {
-        m.addSource(srcId, { type: 'geojson', data: makeSampleGeometry(def.id) })
-        if (def.id === 'ly-road') {
-          m.addLayer({
-            id: layerId,
-            type: 'line',
-            source: srcId,
-            layout: { visibility: 'none' },
-            paint: { 'line-color': style.color, 'line-width': 1.5, 'line-opacity': 0.8 },
-          })
-        } else {
-          m.addLayer({
-            id: layerId,
-            type: 'fill',
-            source: srcId,
-            layout: { visibility: 'none' },
-            paint: { 'fill-color': style.color, 'fill-opacity': style.opacity },
-          })
+
+      // 懒加载：仅当图层首次可见时才请求数据（大图层如永久基本农田 7MB 按需加载）
+      if (!m.getSource(srcId) && def.visible) {
+        try {
+          let data = geoCache.get(def.id)
+          if (!data) {
+            const resp = await fetch(def.sourceUrl)
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+            data = (await resp.json()) as FeatureCollection
+            geoCache.set(def.id, data)
+          }
+          m.addSource(srcId, { type: 'geojson', data: data as never })
+          if (style.type === 'circle') {
+            m.addLayer({
+              id: layerId,
+              type: 'circle',
+              source: srcId,
+              layout: { visibility: 'visible' },
+              paint: {
+                'circle-radius': 6,
+                'circle-color': style.color,
+                'circle-opacity': style.opacity,
+                'circle-stroke-color': '#ffffff',
+                'circle-stroke-width': 1.5,
+              },
+            })
+          } else {
+            m.addLayer({
+              id: layerId,
+              type: 'fill',
+              source: srcId,
+              layout: { visibility: 'visible' },
+              paint: {
+                'fill-color': style.color,
+                'fill-opacity': style.opacity,
+                'fill-outline-color': style.color,
+              },
+            })
+          }
+        } catch (e) {
+          console.warn(`[图层] ${def.id} 加载失败：`, e)
+          continue
         }
       }
+
+      // 切换可见性
       if (m.getLayer(layerId)) {
         m.setLayoutProperty(layerId, 'visibility', def.visible ? 'visible' : 'none')
       }
     }
   }
 
-  return { renderHeat, renderCandidates, renderAoi, renderBusinessLayers, removeLayers }
-}
-
-/** 确定性伪随机：同 id 生成同样的示意几何 */
-function makeSampleGeometry(id: string): FeatureCollection<Polygon, { name: string }> {
-  let seed = 0
-  for (const ch of id) seed = (seed * 31 + ch.charCodeAt(0)) % 997
-  const rnd = () => {
-    seed = (seed * 137 + 71) % 997
-    return seed / 997
-  }
-  const features: Feature<Polygon, { name: string }>[] = []
-  const n = id === 'ly-road' ? 8 : 4
-  for (let i = 0; i < n; i++) {
-    const cx = 108.0 + rnd() * 0.8
-    const cy = 22.6 + rnd() * 0.6
-    const s = 0.05 + rnd() * 0.08
-    features.push({
-      type: 'Feature',
-      geometry: {
-        type: 'Polygon',
-        coordinates: [[[cx, cy], [cx + s, cy + rnd() * 0.05], [cx + s * 0.8, cy + s], [cx - s * 0.2, cy + s * 0.7], [cx, cy]]],
-      },
-      properties: { name: id },
-    })
-  }
-  return { type: 'FeatureCollection', features }
+  return { renderCandidates, renderAoi, renderGeoLayers, removeLayers }
 }

@@ -1,4 +1,4 @@
-/** 地图状态：底图、图层开关、AOI、选中地块、弹窗（模块 5） */
+/** 地图状态：底图、图层分组开关、AOI、选中地块、弹窗（模块 5） */
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { FeatureCollection, Polygon } from 'geojson'
@@ -6,10 +6,24 @@ import type { CandidateParcel, SelectionResponse } from '../types/selection'
 
 export type BasemapId = 'osm' | 'tianditu-vec' | 'tianditu-img'
 
+/** 业务图层（真实 GeoJSON 图层 + 结果图层） */
 export interface BusinessLayer {
   id: string
   name: string
+  /** 所属大类 id（见 LayerGroup） */
+  groupId: string
   visible: boolean
+  /** 图层类型：geojson=真实数据静态加载；heat/candidates=计算结果动态渲染 */
+  kind: 'geojson' | 'heat' | 'candidates'
+  /** geojson 静态路径（仅 kind='geojson'） */
+  sourceUrl?: string
+}
+
+/** 图层大类（可展开/收缩 + 总开关） */
+export interface LayerGroup {
+  id: string
+  name: string
+  expanded: boolean
 }
 
 export const useMapStore = defineStore('map', () => {
@@ -18,15 +32,32 @@ export const useMapStore = defineStore('map', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapInstance = ref<any>(null)
 
-  /** 国土业务图层开关（模块 5.2，样例示意） */
+  /** 图层大类（顺序即展示顺序），默认全部折叠 */
+  const groups = ref<LayerGroup[]>([
+    { id: 'baseline', name: '底线管控', expanded: false },
+    { id: 'control-line', name: '城市控制线', expanded: false },
+    { id: 'industry', name: '产业用地', expanded: false },
+    { id: 'facility', name: '服务与设施', expanded: false },
+  ])
+
+  /** 业务图层（真实 12 个 + 结果 2 个），默认全部关闭，用户手动开启 */
   const layers = ref<BusinessLayer[]>([
-    { id: 'ly-prime-farmland', name: '永久基本农田（示意）', visible: false },
-    { id: 'ly-eco-redline', name: '生态保护红线（示意）', visible: false },
-    { id: 'ly-river', name: '河湖管理范围（示意）', visible: false },
-    { id: 'ly-road', name: '路网', visible: false },
-    { id: 'ly-udb', name: '城镇开发边界（示意）', visible: false },
-    { id: 'ly-result-heat', name: '适宜度热力图', visible: true },
-    { id: 'ly-candidates', name: '候选地块', visible: true },
+    // 底线管控
+    { id: 'perm-farmland', name: '永久基本农田', groupId: 'baseline', visible: false, kind: 'geojson', sourceUrl: '/data/layers/perm-farmland.geojson' },
+    { id: 'eco-redline', name: '生态保护红线', groupId: 'baseline', visible: false, kind: 'geojson', sourceUrl: '/data/layers/eco-redline.geojson' },
+    { id: 'urban-boundary', name: '城镇开发边界', groupId: 'baseline', visible: false, kind: 'geojson', sourceUrl: '/data/layers/urban-boundary.geojson' },
+    // 城市控制线
+    { id: 'yellow-line', name: '城市黄线', groupId: 'control-line', visible: false, kind: 'geojson', sourceUrl: '/data/layers/yellow-line.geojson' },
+    { id: 'blue-line', name: '城市蓝线', groupId: 'control-line', visible: false, kind: 'geojson', sourceUrl: '/data/layers/blue-line.geojson' },
+    { id: 'green-line', name: '城市绿线', groupId: 'control-line', visible: false, kind: 'geojson', sourceUrl: '/data/layers/green-line.geojson' },
+    // 产业用地
+    { id: 'industrial-land', name: '工业用地', groupId: 'industry', visible: false, kind: 'geojson', sourceUrl: '/data/layers/industrial-land.geojson' },
+    { id: 'regulated-industrial', name: '控规工业用地', groupId: 'industry', visible: false, kind: 'geojson', sourceUrl: '/data/layers/regulated-industrial.geojson' },
+    { id: 'industrial-park', name: '产业园区边界', groupId: 'industry', visible: false, kind: 'geojson', sourceUrl: '/data/layers/industrial-park.geojson' },
+    // 服务与设施
+    { id: 'prod-service-point', name: '生产性服务点位（点）', groupId: 'facility', visible: false, kind: 'geojson', sourceUrl: '/data/layers/prod-service-point.geojson' },
+    { id: 'prod-service-area', name: '生产性服务点位（面）', groupId: 'facility', visible: false, kind: 'geojson', sourceUrl: '/data/layers/prod-service-area.geojson' },
+    { id: 'cultural-relic', name: '文物保护单位', groupId: 'facility', visible: false, kind: 'geojson', sourceUrl: '/data/layers/cultural-relic.geojson' },
   ])
 
   /** 研究区：固定为桂林市临桂区（简化边界，样例数据） */
@@ -52,13 +83,38 @@ export const useMapStore = defineStore('map', () => {
     if (l) l.visible = !l.visible
   }
 
+  /** 大类总开关：全开 → 全关；否则 → 全开 */
+  function toggleGroup(groupId: string): void {
+    const ls = layers.value.filter((x) => x.groupId === groupId)
+    if (!ls.length) return
+    const allOn = ls.every((x) => x.visible)
+    ls.forEach((x) => { x.visible = !allOn })
+  }
+
+  /** 大类展开/收缩 */
+  function toggleGroupExpand(groupId: string): void {
+    const g = groups.value.find((x) => x.id === groupId)
+    if (g) g.expanded = !g.expanded
+  }
+
+  /** 大类是否全开（用于总开关状态） */
+  function isGroupAllOn(groupId: string): boolean {
+    const ls = layers.value.filter((x) => x.groupId === groupId)
+    return ls.length > 0 && ls.every((x) => x.visible)
+  }
+
+  /** 某大类开启的图层数 */
+  function groupOnCount(groupId: string): number {
+    return layers.value.filter((x) => x.groupId === groupId && x.visible).length
+  }
+
   function setAoi(poly: Polygon | null): void {
     aoi.value = poly
   }
 
   return {
-    basemap, mapInstance, layers, aoi, result, heatGrid,
+    basemap, mapInstance, groups, layers, aoi, result, heatGrid,
     selectedRank, popupParcel, toolMode,
-    toggleLayer, setAoi,
+    toggleLayer, toggleGroup, toggleGroupExpand, isGroupAllOn, groupOnCount, setAoi,
   }
 })

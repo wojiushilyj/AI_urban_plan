@@ -10,7 +10,7 @@ TODO(09-09 交付)：
   2. filter_hard() —— 约束图层叠加（GeoPandas sjoin / unary_union + buffer）
   3. normalize()   —— 正向/负向/区间型因子 → 0–100
   4. weight()      —— AHP（含 CR<0.1 一致性检验）+ 熵权，按 alpha 组合
-  5. cluster()     —— 邻接网格聚类成地块，算面积(shape 在 EPSG:4545 下)与规整度
+  5. cluster()     —— 邻接网格聚类成地块，算面积(shape 在 EPSG:4525 下)与规整度
   6. sensitivity() —— 权重 ±20% 扰动，检验 Top-N 排序稳定性
 """
 import uuid

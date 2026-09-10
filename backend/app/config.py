@@ -13,7 +13,7 @@ class Settings(BaseSettings):
 
     # ---- 坐标系（国土行业法定要求，勿随意改）----
     CRS_STORAGE: str = "EPSG:4490"    # CGCS2000 地理坐标，入库存储
-    CRS_PROJECTED: str = "EPSG:4545"  # CGCS2000 3度带 CM 108E，距离/面积量算
+    CRS_PROJECTED: str = "EPSG:4525"  # CGCS2000 3度带 zone 37（CM 111E），距离/面积量算（桂林临桂区）
     CRS_WEB: str = "EPSG:3857"        # Web Mercator，前端展示
 
     # ---- 数据库（小型本地数据库：SQLite）----

@@ -28,7 +28,7 @@ const mapStore = useMapStore()
 
 <style scoped>
 .basemap-control {
-  width: 224px;
+  width: 240px;
   background: var(--bg-panel);
   border: 1px solid var(--border-lighter);
   border-radius: var(--radius-md);

@@ -44,14 +44,11 @@ const layers = useMapLayers(() => map.value, {
 
 /** 把全部业务图层重新挂到当前 style（底图切换后调用） */
 function reapplyAll(): void {
+  // 真实业务图层始终重挂（不依赖计算结果）
+  layers.renderGeoLayers(mapStore.layers)
+  // 候选地块仅在已有结果时重挂（始终显示）
   if (!mapStore.result) return
-  layers.renderHeat(mapStore.heatGrid!, isLayerVisible('ly-result-heat'))
-  layers.renderCandidates(mapStore.result, mapStore.selectedRank, isLayerVisible('ly-candidates'))
-  layers.renderBusinessLayers(mapStore.layers)
-}
-
-function isLayerVisible(id: string): boolean {
-  return mapStore.layers.find((l) => l.id === id)?.visible ?? true
+  layers.renderCandidates(mapStore.result, mapStore.selectedRank, true)
 }
 
 onMounted(() => {
@@ -59,7 +56,7 @@ onMounted(() => {
   const m = init(container.value, mapStore.basemap)
   mapStore.mapInstance = m
   m.on('load', () => {
-    layers.renderBusinessLayers(mapStore.layers)
+    layers.renderGeoLayers(mapStore.layers)
   })
 })
 
@@ -82,7 +79,7 @@ watch(
 watch(
   () => mapStore.result,
   (r) => {
-    if (!r || !mapStore.heatGrid) return
+    if (!r) return
     reapplyAll()
     // 视野适配到 AOI
     if (mapStore.aoi && map.value) {
@@ -101,7 +98,7 @@ watch(
   () => mapStore.selectedRank,
   (rank) => {
     if (!mapStore.result) return
-    layers.renderCandidates(mapStore.result, rank, isLayerVisible('ly-candidates'))
+    layers.renderCandidates(mapStore.result, rank, true)
     const c = mapStore.result.candidates.find((x) => x.rank === rank)
     if (c && map.value) {
       // fitBounds 放大居中到该地块
@@ -119,17 +116,7 @@ watch(
 watch(
   () => mapStore.layers,
   (ls) => {
-    layers.renderBusinessLayers(ls)
-    // 热力图 / 候选图层可见性
-    const m = map.value
-    if (!m) return
-    if (m.getLayer('heat-layer')) {
-      m.setLayoutProperty('heat-layer', 'visibility', isLayerVisible('ly-result-heat') ? 'visible' : 'none')
-    }
-    if (m.getLayer('candidates-fill')) {
-      m.setLayoutProperty('candidates-fill', 'visibility', isLayerVisible('ly-candidates') ? 'visible' : 'none')
-      m.setLayoutProperty('candidates-line', 'visibility', isLayerVisible('ly-candidates') ? 'visible' : 'none')
-    }
+    layers.renderGeoLayers(ls)
   },
   { deep: true }
 )

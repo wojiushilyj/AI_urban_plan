@@ -247,3 +247,27 @@
 2. 视需要做移动端抽屉式折叠交互（需 JS）。
 
 ---
+
+## 2026-09-10
+
+**做了什么（真实规划数据入库 + 前端图层分类管理）**
+- 用户提供 12 个真实规划 SHP（桂林临桂区，**非样例**，UTF-8）。实测坐标系为 **CGCS2000 3 度带 zone 37（CM 111E，EPSG:4525，带号坐标）**，仅「永久基本农田」「生态保护红线」带 .prj，其余 9 个缺 .prj 经坐标范围校验统一补声明。
+- 重写 `scripts/preprocess.py`：12 shp → 补 CRS → 转 EPSG:4490 存 GeoPackage（`data/processed/layers.gpkg`，SQLite 形式）+ 转 EPSG:4326 出 GeoJSON（`data/processed/geojson/` 与 `frontend/public/data/layers/` 双份）。
+- **校正坐标系**：README §4 / `backend/app/config.py` / `suitability.py` 的投影坐标系 EPSG:4545（CM 108E）→ **EPSG:4525**（zone 37，CM 111E，桂林适用）。
+- 登记 `data/README.md`：12 个真实图层清单，来源与时点暂填"桂林市临桂区规划成果 / 2026-09 获取"待确认。
+- **前端图层分类管理**：`store/map.ts` 图层改分组结构（5 大类）；`LayerManager.vue` 分组 UI（大类总开关 + 每图层单开关 + 点击展开/收缩）；`useMapLayers.ts` mock 几何改为 `renderGeoLayers` 懒加载真实 GeoJSON；`MapStage.vue` 业务图层渲染不依赖结果守卫。
+- `.gitignore` 新增 `frontend/public/data/`（真实数据严禁入库）。
+
+**技术决策与理由**
+- 存储用 GeoPackage（本质 SQLite，符合"小型本地数据库"定位 + 评委拷走即跑），GeoJSON 仅作**出图/交换格式**，不是存储格式。
+- 真实数据不入 git（README 铁律），评委环境运行 `preprocess.py` 重新生成即可。
+
+**当前状态**
+- `npm run build` 通过（2318 modules，vue-tsc 0 错误），dev server http://localhost:5173/ 正常，`/data/layers/*.geojson` 静态可访问（中文字段、坐标、7.5MB 大图层均验证）。
+
+**下一步**
+1. 后端 `/api/layers` 接口（从 gpkg 读图层返回 GeoJSON），前端切换到 API 加载。
+2. 确认数据来源/时点细节，补全 `data/README.md` 与申报书数据声明。
+3. 后端 scenarios 路由与选址引擎接线（仍未完成）。
+
+---

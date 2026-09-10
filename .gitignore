@@ -20,6 +20,8 @@ data/raw/*
 data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+# 前端静态空间数据（真实规划数据，由 preprocess.py 生成，严禁入库）
+frontend/public/data/
 *.shp
 *.shx
 *.dbf
