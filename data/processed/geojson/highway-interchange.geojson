@@ -1,0 +1,14 @@
+{
+"type": "FeatureCollection",
+"name": "highway-interchange",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "名称": "机场高速出入口" }, "geometry": { "type": "Point", "coordinates": [ 110.131227, 25.244363 ] } },
+{ "type": "Feature", "properties": { "名称": "两江高速出入口" }, "geometry": { "type": "Point", "coordinates": [ 110.054581, 25.177334 ] } },
+{ "type": "Feature", "properties": { "名称": "五通高速出入口" }, "geometry": { "type": "Point", "coordinates": [ 110.113519, 25.355026 ] } },
+{ "type": "Feature", "properties": { "名称": "苏桥高速出入口" }, "geometry": { "type": "Point", "coordinates": [ 110.062071, 25.118945 ] } },
+{ "type": "Feature", "properties": { "名称": "规划西二环高速出入口" }, "geometry": { "type": "Point", "coordinates": [ 110.207215, 25.293647 ] } },
+{ "type": "Feature", "properties": { "名称": "规划包茂高速出入口" }, "geometry": { "type": "Point", "coordinates": [ 110.177828, 25.168428 ] } },
+{ "type": "Feature", "properties": { "名称": "机场高速出入口" }, "geometry": { "type": "Point", "coordinates": [ 110.056473, 25.238846 ] } }
+]
+}

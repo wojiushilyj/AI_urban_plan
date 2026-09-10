@@ -222,8 +222,15 @@ export function useMapLayers(getMap: () => MlMap | null, hooks: LayerHooks = {})
   async function renderGeoLayers(defs: BusinessLayer[]): Promise<void> {
     const m = getMap()
     if (!m) return
-    // 语义配色：耕地橙黄、红线红、水系蓝、绿地绿、产业橙紫、设施青、文保深红
-    const styleMap: Record<string, { color: string; opacity: number; type: 'fill' | 'circle' }> = {
+    // 语义配色：耕地橙黄、红线红、水系蓝、绿地绿、产业橙紫、设施青、文保深红、交通灰红
+    interface LayerStyle {
+      color: string
+      opacity: number
+      type: 'fill' | 'circle' | 'line'
+      /** 线图层自定义 paint（按属性分级着色/定宽），提供时覆盖 color/opacity */
+      linePaint?: Record<string, unknown>
+    }
+    const styleMap: Record<string, LayerStyle> = {
       'perm-farmland': { color: '#F59E0B', opacity: 0.35, type: 'fill' },
       'eco-redline': { color: '#EF4444', opacity: 0.3, type: 'fill' },
       'urban-boundary': { color: '#8B5CF6', opacity: 0.25, type: 'fill' },
@@ -231,8 +238,43 @@ export function useMapLayers(getMap: () => MlMap | null, hooks: LayerHooks = {})
       'blue-line': { color: '#3B82F6', opacity: 0.3, type: 'fill' },
       'green-line': { color: '#22C55E', opacity: 0.3, type: 'fill' },
       'industrial-land': { color: '#D97706', opacity: 0.35, type: 'fill' },
+      // 现状工业用地用深褐，与规划口径的亮橙（工业用地/控规工业用地）区分
+      'current-industrial-land': { color: '#78350F', opacity: 0.3, type: 'fill' },
       'regulated-industrial': { color: '#EA580C', opacity: 0.35, type: 'fill' },
       'industrial-park': { color: '#7C3AED', opacity: 0.35, type: 'fill' },
+      // 交通设施：路网按道路等级分级着色（高速红 / 快速橙 / 公路黄 / 城市道路灰 / 铁路紫）
+      'road-network': {
+        color: '#94A3B8',
+        opacity: 0.85,
+        type: 'line',
+        linePaint: {
+          'line-color': [
+            'match', ['get', '道路等级'],
+            '高速公路', '#DC2626',
+            '快速路', '#EA580C',
+            '一级公路', '#F59E0B',
+            '二级公路', '#F59E0B',
+            '主干路', '#64748B',
+            '次干路', '#94A3B8',
+            '支路', '#CBD5E1',
+            '#7C3AED', // 其余（铁路-普铁/高铁/市域）
+          ],
+          'line-width': [
+            'match', ['get', '道路等级'],
+            '高速公路', 3,
+            '快速路', 2.6,
+            '一级公路', 2,
+            '二级公路', 2,
+            '主干路', 1.6,
+            '次干路', 1.2,
+            '支路', 0.9,
+            1.6,
+          ],
+          'line-opacity': 0.85,
+        },
+      },
+      'highway-interchange': { color: '#991B1B', opacity: 0.95, type: 'circle' },
+      'freight-station': { color: '#0D9488', opacity: 0.45, type: 'fill' },
       'prod-service-point': { color: '#06B6D4', opacity: 0.9, type: 'circle' },
       'prod-service-area': { color: '#0EA5E9', opacity: 0.4, type: 'fill' },
       'cultural-relic': { color: '#DC2626', opacity: 0.5, type: 'fill' },
@@ -265,6 +307,18 @@ export function useMapLayers(getMap: () => MlMap | null, hooks: LayerHooks = {})
                 'circle-stroke-color': '#ffffff',
                 'circle-stroke-width': 1.5,
               },
+            })
+          } else if (style.type === 'line') {
+            m.addLayer({
+              id: layerId,
+              type: 'line',
+              source: srcId,
+              layout: { visibility: 'visible', 'line-cap': 'round', 'line-join': 'round' },
+              paint: (style.linePaint ?? {
+                'line-color': style.color,
+                'line-width': 1.5,
+                'line-opacity': style.opacity,
+              }) as never,
             })
           } else {
             m.addLayer({

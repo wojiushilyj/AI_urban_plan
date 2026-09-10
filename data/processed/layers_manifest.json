@@ -15,6 +15,10 @@
     [
       "facility",
       "服务与设施"
+    ],
+    [
+      "transport",
+      "交通设施"
     ]
   ],
   "layers": [
@@ -80,13 +84,24 @@
     },
     {
       "id": "industrial-land",
-      "name": "工业用地",
+      "name": "总规工业用地",
       "group": "industry",
       "features": 215,
       "geom_type": [
         "Polygon"
       ],
       "src_crs": "补 EPSG:4525"
+    },
+    {
+      "id": "current-industrial-land",
+      "name": "临桂现状工业用地",
+      "group": "industry",
+      "features": 684,
+      "geom_type": [
+        "MultiPolygon",
+        "Polygon"
+      ],
+      "src_crs": "EPSG:4525"
     },
     {
       "id": "regulated-industrial",
@@ -107,6 +122,36 @@
         "Polygon"
       ],
       "src_crs": "补 EPSG:4525"
+    },
+    {
+      "id": "road-network",
+      "name": "道路路网",
+      "group": "transport",
+      "features": 4054,
+      "geom_type": [
+        "LineString"
+      ],
+      "src_crs": "补 EPSG:4525"
+    },
+    {
+      "id": "highway-interchange",
+      "name": "高速出入口",
+      "group": "transport",
+      "features": 7,
+      "geom_type": [
+        "Point"
+      ],
+      "src_crs": "EPSG:4525"
+    },
+    {
+      "id": "freight-station",
+      "name": "货运场站用地",
+      "group": "transport",
+      "features": 17,
+      "geom_type": [
+        "Polygon"
+      ],
+      "src_crs": "EPSG:4525"
     },
     {
       "id": "prod-service-point",

@@ -16,8 +16,13 @@ export const LAYER_URLS = {
   'blue-line': '/data/layers/blue-line.geojson',
   'green-line': '/data/layers/green-line.geojson',
   'industrial-land': '/data/layers/industrial-land.geojson',
+  'current-industrial-land': '/data/layers/current-industrial-land.geojson',
   'regulated-industrial': '/data/layers/regulated-industrial.geojson',
   'industrial-park': '/data/layers/industrial-park.geojson',
+  // 交通设施（2026-09-10 新增，原 4 大类无法归类，单独成类）
+  'road-network': '/data/layers/road-network.geojson',
+  'highway-interchange': '/data/layers/highway-interchange.geojson',
+  'freight-station': '/data/layers/freight-station.geojson',
   'prod-service-point': '/data/layers/prod-service-point.geojson',
   'prod-service-area': '/data/layers/prod-service-area.geojson',
   'cultural-relic': '/data/layers/cultural-relic.geojson',

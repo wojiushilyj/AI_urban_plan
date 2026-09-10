@@ -9,13 +9,15 @@
  *   硬约束  eco-redline             生态保护红线   ┐ 一票否决
  *           perm-farmland           永久基本农田   ┘
  *   软因子  urban-boundary          城镇开发边界   → 城市规划
- *           industrial-land         工业用地       → 城市规划（规划-现状契合度）
+ *           industrial-land         总规工业用地     → 城市规划（规划-现状契合度）
+ *                                   （注：另有 current-industrial-land「临桂现状工业用地」
+ *                                     684 图斑，目前仅作上图展示，未参与因子计算）
  *           prod-service-point/area 生产性服务点位 → 交通物流
  *           industrial-park         产业园区边界   → 产业协同
  *           yellow-line             城市黄线       → 基础配套
  *           几何尺度（面积 + 规整度）               → 建造成本
  *
- * 说明：源 SHP 仅含 Shape_Leng / Shape_Area 内部字段，无业务属性，
+ * 说明：候选池源 SHP（控规工业用地）仅含 Shape_Leng / Shape_Area 内部字段，无业务属性，
  * 因此地块编码由「来源图层 + 要素序号」生成（如 KG-065），各因子得分为真实空间关系统计结果。
  *
  * 初选口径：硬约束一票否决 + 最小面积 + 用地规模区间。

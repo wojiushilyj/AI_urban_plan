@@ -39,10 +39,12 @@ export const useMapStore = defineStore('map', () => {
     { id: 'control-line', name: '城市控制线', expanded: false },
     { id: 'industry', name: '产业用地', expanded: false },
     { id: 'facility', name: '服务与设施', expanded: false },
+    // 交通类图层与原 4 大类语义不重合，单独成类（2026-09-10 新增）
+    { id: 'transport', name: '交通设施', expanded: false },
     { id: 'result', name: '选址结果', expanded: true },
   ])
 
-  /** 业务图层（真实 12 个），默认全部关闭，用户手动开启；路径统一由 api/layers.ts 维护 */
+  /** 业务图层（真实 16 个），默认全部关闭，用户手动开启；路径统一由 api/layers.ts 维护 */
   const layers = ref<BusinessLayer[]>([
     // 底线管控
     { id: 'perm-farmland', name: '永久基本农田', groupId: 'baseline', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['perm-farmland'] },
@@ -53,9 +55,14 @@ export const useMapStore = defineStore('map', () => {
     { id: 'blue-line', name: '城市蓝线', groupId: 'control-line', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['blue-line'] },
     { id: 'green-line', name: '城市绿线', groupId: 'control-line', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['green-line'] },
     // 产业用地
-    { id: 'industrial-land', name: '工业用地', groupId: 'industry', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['industrial-land'] },
+    { id: 'industrial-land', name: '总规工业用地', groupId: 'industry', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['industrial-land'] },
+    { id: 'current-industrial-land', name: '临桂现状工业用地', groupId: 'industry', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['current-industrial-land'] },
     { id: 'regulated-industrial', name: '控规工业用地', groupId: 'industry', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['regulated-industrial'] },
     { id: 'industrial-park', name: '产业园区边界', groupId: 'industry', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['industrial-park'] },
+    // 交通设施
+    { id: 'road-network', name: '道路路网', groupId: 'transport', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['road-network'] },
+    { id: 'highway-interchange', name: '高速出入口', groupId: 'transport', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['highway-interchange'] },
+    { id: 'freight-station', name: '货运场站用地', groupId: 'transport', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['freight-station'] },
     // 服务与设施
     { id: 'prod-service-point', name: '生产性服务点位（点）', groupId: 'facility', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['prod-service-point'] },
     { id: 'prod-service-area', name: '生产性服务点位（面）', groupId: 'facility', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['prod-service-area'] },
