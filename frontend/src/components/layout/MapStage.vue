@@ -42,13 +42,18 @@ const layers = useMapLayers(() => map.value, {
   },
 })
 
+/** 候选地块图层的可见性（由图层面板「选址结果」大类控制） */
+const candidateVis = computed(() => ({
+  parcels: mapStore.layerVisible('candidates'),
+  labels: mapStore.layerVisible('candidate-labels'),
+}))
+
 /** 把全部业务图层重新挂到当前 style（底图切换后调用） */
 function reapplyAll(): void {
   // 真实业务图层始终重挂（不依赖计算结果）
   layers.renderGeoLayers(mapStore.layers)
-  // 候选地块仅在已有结果时重挂（始终显示）
   if (!mapStore.result) return
-  layers.renderCandidates(mapStore.result, mapStore.selectedRank, true)
+  layers.renderCandidates(mapStore.result, mapStore.selectedRank, candidateVis.value)
 }
 
 onMounted(() => {
@@ -98,7 +103,7 @@ watch(
   () => mapStore.selectedRank,
   (rank) => {
     if (!mapStore.result) return
-    layers.renderCandidates(mapStore.result, rank, true)
+    layers.renderCandidates(mapStore.result, rank, candidateVis.value)
     const c = mapStore.result.candidates.find((x) => x.rank === rank)
     if (c && map.value) {
       // fitBounds 放大居中到该地块
@@ -112,11 +117,15 @@ watch(
   }
 )
 
-// 业务图层开关（模块 5.2）
+// 业务图层 / 候选地块图层开关（模块 5.2）
 watch(
   () => mapStore.layers,
   (ls) => {
     layers.renderGeoLayers(ls)
+    // 选址结果图层的可见性也由面板控制
+    if (mapStore.result) {
+      layers.renderCandidates(mapStore.result, mapStore.selectedRank, candidateVis.value)
+    }
   },
   { deep: true }
 )

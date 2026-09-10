@@ -35,19 +35,25 @@ function rowClass({ row }: { row: { rank: number } }): string[] {
       @row-click="onRowClick"
       style="width: 100%; cursor: pointer"
     >
-      <el-table-column prop="rank" label="#" width="42" />
-      <el-table-column label="综合得分" width="100">
+      <el-table-column label="编号" width="96">
+        <template #default="{ row }">
+          <span class="candidate-table__code">
+            <b class="candidate-table__rank">#{{ row.rank }}</b>{{ row.code }}
+          </span>
+        </template>
+      </el-table-column>
+      <el-table-column label="综合得分" width="82">
         <template #default="{ row }">
           <span class="candidate-table__score" :data-level="row.score >= 85 ? 'hi' : row.score >= 70 ? 'mid' : 'lo'">
             {{ fmtScore(row.score) }}
           </span>
         </template>
       </el-table-column>
-      <el-table-column prop="area_ha" label="面积(ha)" width="80" />
+      <el-table-column prop="area_ha" label="面积(ha)" width="74" />
       <el-table-column label="评估">
         <template #default="{ row }">
           <el-tag size="small" :type="row.cluster === 0 ? 'success' : row.cluster === 1 ? 'primary' : 'warning'">
-            {{ row.cluster === 0 ? '优先开发类' : row.cluster === 1 ? '条件适合类' : '储备备用类' }}
+            {{ row.cluster === 0 ? '优先开发' : row.cluster === 1 ? '条件适合' : '储备备用' }}
           </el-tag>
         </template>
       </el-table-column>
@@ -60,6 +66,18 @@ function rowClass({ row }: { row: { rank: number } }): string[] {
 .candidate-table__hint {
   font-size: 13px;
   color: var(--text-secondary);
+}
+/* 地块编号：与地图上的编号标注一一对应 */
+.candidate-table__code {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 12px;
+  color: var(--text-regular);
+  white-space: nowrap;
+}
+.candidate-table__rank {
+  color: var(--brand);
+  font-weight: 700;
+  margin-right: 4px;
 }
 .candidate-table__score {
   font-weight: 700;

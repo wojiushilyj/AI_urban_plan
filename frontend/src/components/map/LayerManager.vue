@@ -1,13 +1,21 @@
 <script setup lang="ts">
 /** 图层管理（模块 5.2）：图层按大类分组，每类有总开关 + 每图层单独开关，大类可点击展开/收缩 */
 import { computed, ref } from 'vue'
-import { useMapStore } from '../../store/map'
+import { useMapStore, type BusinessLayer } from '../../store/map'
 
 const mapStore = useMapStore()
 const expanded = ref(false)
 
 function toggle(): void {
   expanded.value = !expanded.value
+}
+
+/** 「选址结果」类在分析完成前取不到数据，开关置灰 */
+function isGroupPending(groupId: string): boolean {
+  return groupId === 'result' && !mapStore.result
+}
+function isPending(l: BusinessLayer): boolean {
+  return l.groupId === 'result' && !mapStore.result
 }
 
 /** 某大类的图层列表 */
@@ -51,11 +59,14 @@ const onCount = computed(() => mapStore.layers.filter((l) => l.visible).length)
           <div class="layer-group__title" @click="mapStore.toggleGroupExpand(g.id)">
             <svg class="layer-manager__chevron" :class="{ 'is-collapsed': !g.expanded }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M6 9l6 6 6-6"/></svg>
             <span class="layer-group__name">{{ g.name }}</span>
-            <span class="layer-group__count">{{ groupOnCount(g.id) }}/{{ groupTotal(g.id) }}</span>
+            <span class="layer-group__count">
+              {{ isGroupPending(g.id) ? '待分析' : `${groupOnCount(g.id)}/${groupTotal(g.id)}` }}
+            </span>
           </div>
           <el-switch
             :model-value="mapStore.isGroupAllOn(g.id)"
             size="small"
+            :disabled="isGroupPending(g.id)"
             @change="mapStore.toggleGroup(g.id)"
           />
         </div>
@@ -63,13 +74,16 @@ const onCount = computed(() => mapStore.layers.filter((l) => l.visible).length)
         <!-- 大类下图层 -->
         <div v-show="g.expanded" class="layer-group__list">
           <div v-for="l in groupLayers(g.id)" :key="l.id" class="layer-manager__item">
-            <span class="layer-manager__name" :class="{ 'is-dim': !l.visible }">{{ l.name }}</span>
+            <span class="layer-manager__name" :class="{ 'is-dim': !l.visible || isPending(l) }">{{ l.name }}</span>
             <el-switch
               :model-value="l.visible"
               size="small"
+              :disabled="isPending(l)"
               @change="mapStore.toggleLayer(l.id)"
             />
           </div>
+          <!-- 分析前该大类无内容可渲染，给出说明 -->
+          <div v-if="isGroupPending(g.id)" class="layer-group__empty">完成选址分析后自动上图</div>
         </div>
       </div>
     </div>
@@ -183,5 +197,12 @@ const onCount = computed(() => mapStore.layers.filter((l) => l.visible).length)
 }
 .layer-manager__name.is-dim {
   color: var(--text-disabled);
+}
+/* 尚未可用的说明（分析前「选址结果」类无内容可渲染） */
+.layer-group__empty {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-disabled);
+  padding: 1px 0 2px;
 }
 </style>

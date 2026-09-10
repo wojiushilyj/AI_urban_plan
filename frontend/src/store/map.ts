@@ -33,12 +33,13 @@ export const useMapStore = defineStore('map', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapInstance = ref<any>(null)
 
-  /** 图层大类（顺序即展示顺序），默认全部折叠 */
+  /** 图层大类（顺序即展示顺序），默认全部折叠；选址结果类默认展开 */
   const groups = ref<LayerGroup[]>([
     { id: 'baseline', name: '底线管控', expanded: false },
     { id: 'control-line', name: '城市控制线', expanded: false },
     { id: 'industry', name: '产业用地', expanded: false },
     { id: 'facility', name: '服务与设施', expanded: false },
+    { id: 'result', name: '选址结果', expanded: true },
   ])
 
   /** 业务图层（真实 12 个），默认全部关闭，用户手动开启；路径统一由 api/layers.ts 维护 */
@@ -59,6 +60,9 @@ export const useMapStore = defineStore('map', () => {
     { id: 'prod-service-point', name: '生产性服务点位（点）', groupId: 'facility', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['prod-service-point'] },
     { id: 'prod-service-area', name: '生产性服务点位（面）', groupId: 'facility', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['prod-service-area'] },
     { id: 'cultural-relic', name: '文物保护单位', groupId: 'facility', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['cultural-relic'] },
+    // 选址结果（分析完成后由 useMapLayers 动态渲染，默认开启）
+    { id: 'candidates', name: '候选地块', groupId: 'result', visible: true, kind: 'candidates' },
+    { id: 'candidate-labels', name: '地块编号', groupId: 'result', visible: true, kind: 'candidates' },
   ])
 
   /** 研究区：固定为桂林市临桂区（简化边界，样例数据） */
@@ -108,6 +112,11 @@ export const useMapStore = defineStore('map', () => {
     return layers.value.filter((x) => x.groupId === groupId && x.visible).length
   }
 
+  /** 指定图层是否开启（渲染层读取可见性用） */
+  function layerVisible(id: string): boolean {
+    return layers.value.find((x) => x.id === id)?.visible ?? false
+  }
+
   function setAoi(poly: Polygon | null): void {
     aoi.value = poly
   }
@@ -115,6 +124,6 @@ export const useMapStore = defineStore('map', () => {
   return {
     basemap, mapInstance, groups, layers, aoi, result,
     selectedRank, popupParcel, toolMode,
-    toggleLayer, toggleGroup, toggleGroupExpand, isGroupAllOn, groupOnCount, setAoi,
+    toggleLayer, toggleGroup, toggleGroupExpand, isGroupAllOn, groupOnCount, layerVisible, setAoi,
   }
 })
