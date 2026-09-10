@@ -1,6 +1,6 @@
 /**
  * 结果图层渲染（模块 5.3 / 5.2）：
- * - 候选地块矢量（fill 按 score 分级 + line 边界 + 候选地块编号 No.x 标注，
+ * - 候选地块矢量（fill 按 score 分级 + line 边界 + 候选地块序号 ①②③ 标注，
  *   数据来自真实控规工业用地图斑）
  * - 真实业务图层（从 /data/layers/*.geojson 懒加载渲染，见 renderGeoLayers）
  * 底图 style 切换后由调用方 reapplyAll 重挂全部图层。
@@ -20,54 +20,49 @@ export interface LayerHooks {
 export interface CandidateVisibility {
   /** 候选地块面 */
   parcels: boolean
-  /** 候选地块编号标注（No.1 / No.2 …） */
+  /** 候选地块序号标注（①②③…） */
   labels: boolean
 }
 
-/** 编号标注贴图 id 前缀 */
-const LABEL_IMAGE_PREFIX = 'parcel-label-no'
+/** 序号标注贴图 id 前缀（改前缀可让底图切换/热更新后重新注册贴图） */
+const LABEL_IMAGE_PREFIX = 'parcel-label-idx'
 /** 标注贴图按 2 倍分辨率绘制，addImage 的 pixelRatio 会把它还原为 1 倍显示尺寸 */
 const LABEL_PIXEL_RATIO = 2
+/** 序号徽标直径（逻辑像素） */
+const LABEL_DIAMETER = 20
 
 /**
- * 把候选地块编号绘制成贴图。
+ * 把候选地块序号绘制成圆形徽标贴图（白字蓝底圆标，视觉上即 ①②③）。
  *
  * 不使用 symbol 的 text-field：底图样式是 OSM / 天地图**栅格**样式，没有 glyphs 字体服务，
  * 文本会静默丢失。canvas 贴图零依赖、离线可用，且能被 preserveDrawingBuffer 的图纸导出捕获。
+ *
+ * 也不用 Unicode 的 ① 字形：① 自带一个圆圈，再叠加徽标底圈会出现「圈套圈」，
+ * 且该字形在部分系统字体下缺字。直接画圆 + 数字，跨平台稳定。
  */
-function makeLabelImage(text: string): ImageData {
-  const fontSize = 12
-  const padX = 8
-  const padY = 4
-  const font = `600 ${fontSize}px "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif`
+function makeBadgeImage(rank: number): ImageData {
+  const text = String(rank)
+  const d = LABEL_DIAMETER
+  const font = (size: number) =>
+    `700 ${size}px "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif`
   const canvas = document.createElement('canvas')
+  canvas.width = d * LABEL_PIXEL_RATIO
+  canvas.height = d * LABEL_PIXEL_RATIO
   const ctx = canvas.getContext('2d') as CanvasRenderingContext2D
-  ctx.font = font
-  const textWidth = ctx.measureText(text).width
-  const w = Math.ceil(textWidth + padX * 2)
-  const h = fontSize + padY * 2
-  canvas.width = w * LABEL_PIXEL_RATIO
-  canvas.height = h * LABEL_PIXEL_RATIO
-  // 改动 canvas 尺寸会重置上下文状态，字体/对齐需重设
+  // 改动 canvas 尺寸会重置上下文状态，缩放/字体/对齐都需在此之后设置
   ctx.scale(LABEL_PIXEL_RATIO, LABEL_PIXEL_RATIO)
-  ctx.font = font
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  const r = h / 2
   ctx.beginPath()
-  ctx.moveTo(r, 0)
-  ctx.arcTo(w, 0, w, h, r)
-  ctx.arcTo(w, h, 0, h, r)
-  ctx.arcTo(0, h, 0, 0, r)
-  ctx.arcTo(0, 0, w, 0, r)
-  ctx.closePath()
+  ctx.arc(d / 2, d / 2, d / 2 - 1, 0, Math.PI * 2)
   ctx.fillStyle = '#1D4ED8'
   ctx.fill()
-  ctx.lineWidth = 1
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)'
+  ctx.lineWidth = 1.5
+  ctx.strokeStyle = '#FFFFFF'
   ctx.stroke()
+  ctx.font = font(text.length > 1 ? 9 : 12)
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
   ctx.fillStyle = '#FFFFFF'
-  ctx.fillText(text, w / 2, h / 2 + 0.5)
+  ctx.fillText(text, d / 2, d / 2 + 0.5)
   return ctx.getImageData(0, 0, canvas.width, canvas.height)
 }
 
@@ -85,7 +80,7 @@ export function useMapLayers(getMap: () => MlMap | null, hooks: LayerHooks = {})
     for (const id of ids) if (m.getLayer(id)) m.removeLayer(id)
   }
 
-  /** 候选地块矢量 + 编号标注（模块 5.3） */
+  /** 候选地块矢量 + 序号标注（模块 5.3） */
   function renderCandidates(
     result: SelectionResponse,
     selectedRank: number | null,
@@ -102,7 +97,7 @@ export function useMapLayers(getMap: () => MlMap | null, hooks: LayerHooks = {})
         properties: { rank: c.rank, score: c.score, code: c.code ?? '', parcel: JSON.stringify(c) },
       })),
     }
-    // 候选地块编号（No.1 / No.2 …）标注挂在图斑内点上（而非面要素）：
+    // 候选地块序号（①②③…）标注挂在图斑内点上（而非面要素）：
     // 面要素的标注锚点由 MapLibre 内部推算，用内点可保证标注始终落在图斑内部。
     const labels: FeatureCollection<Point, { rank: number; image: string }> = {
       type: 'FeatureCollection',
@@ -113,16 +108,16 @@ export function useMapLayers(getMap: () => MlMap | null, hooks: LayerHooks = {})
       })),
     }
 
-    // 编号贴图：底图 style 切换会清空已注册图片，此处按需补建
+    // 序号贴图：底图 style 切换会清空已注册图片，此处按需补建
     for (const f of labels.features) {
       if (m.hasImage(f.properties.image)) continue
       try {
-        m.addImage(f.properties.image, makeLabelImage(`No.${f.properties.rank}`), {
+        m.addImage(f.properties.image, makeBadgeImage(f.properties.rank), {
           pixelRatio: LABEL_PIXEL_RATIO,
         })
       } catch (e) {
         // style 尚未就绪时先跳过，下一次 reapplyAll 会补上
-        console.warn('[候选地块] 编号贴图注册失败：', e)
+        console.warn('[候选地块] 序号贴图注册失败：', e)
       }
     }
 
@@ -152,7 +147,7 @@ export function useMapLayers(getMap: () => MlMap | null, hooks: LayerHooks = {})
         paint: { 'line-color': '#2563EB', 'line-width': 1.5 },
       })
     }
-    // 编号标注（symbol + icon-image，不依赖 glyphs）
+    // 序号标注（symbol + icon-image，不依赖 glyphs）
     if (!m.getLayer('candidates-label')) {
       m.addLayer({
         id: 'candidates-label',
@@ -161,7 +156,7 @@ export function useMapLayers(getMap: () => MlMap | null, hooks: LayerHooks = {})
         layout: {
           'icon-image': ['get', 'image'],
           'icon-size': 1,
-          // 候选地块数量少（Top-N），不做避让，保证编号全部可见
+          // 候选地块数量少（Top-N），不做避让，保证序号全部可见
           'icon-allow-overlap': true,
           'icon-ignore-placement': true,
           // 名次靠前的压在上层

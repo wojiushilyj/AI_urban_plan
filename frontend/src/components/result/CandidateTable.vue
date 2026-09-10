@@ -35,12 +35,9 @@ function rowClass({ row }: { row: { rank: number } }): string[] {
       @row-click="onRowClick"
       style="width: 100%; cursor: pointer"
     >
-      <el-table-column label="编号" width="96">
+      <el-table-column label="编号" width="64">
         <template #default="{ row }">
-          <span class="candidate-table__code">
-            <b class="candidate-table__rank">No.{{ row.rank }}</b>
-            <span class="candidate-table__code-val">{{ row.code }}</span>
-          </span>
+          <b class="candidate-table__rank">No.{{ row.rank }}</b>
         </template>
       </el-table-column>
       <el-table-column label="综合得分" width="82">
@@ -68,21 +65,11 @@ function rowClass({ row }: { row: { rank: number } }): string[] {
   font-size: 13px;
   color: var(--text-secondary);
 }
-/* 候选地块编号（与地图上的 No.x 标注一一对应）+ 地块编码 */
-.candidate-table__code {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  white-space: nowrap;
-}
+/* 候选地块编号（与地图上的序号标注一一对应）；地块编码只在详情卡片展示 */
 .candidate-table__rank {
   color: var(--brand);
   font-weight: 700;
-}
-.candidate-table__code-val {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
-  color: var(--text-secondary);
+  white-space: nowrap;
 }
 .candidate-table__score {
   font-weight: 700;

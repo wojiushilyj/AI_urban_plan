@@ -62,7 +62,7 @@ export const useMapStore = defineStore('map', () => {
     { id: 'cultural-relic', name: '文物保护单位', groupId: 'facility', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['cultural-relic'] },
     // 选址结果（分析完成后由 useMapLayers 动态渲染，默认开启）
     { id: 'candidates', name: '候选地块', groupId: 'result', visible: true, kind: 'candidates' },
-    { id: 'candidate-labels', name: '地块编号', groupId: 'result', visible: true, kind: 'candidates' },
+    { id: 'candidate-labels', name: '地块序号', groupId: 'result', visible: true, kind: 'candidates' },
   ])
 
   /** 研究区：固定为桂林市临桂区（简化边界，样例数据） */
