@@ -6,14 +6,16 @@
 ---
 
 ## 当前阶段
-**阶段 1：前端 UI 完成 + 后端骨架** ｜ 下一节点：**09-09 补齐后端选址引擎与 scenarios 路由**
+**阶段 2：后端选址引擎完成，前后端接口全部打通** ｜ 下一节点：**09-11 前端切真实后端联调 + 同步 docs/SCENARIOS.md**
 
 ## 当前阻塞点
 - [x] GitHub 仓库已创建并推送 ✅
-- [x] 前端全套 UI（9 大模块）已实现，mock 数据可独立演示 ✅
-- [ ] 后端 `/api/scenarios` 路由缺失、`/api/selection/run` 返回 501 ← 下一个要解决的
-- [ ] 演示区（广西某市/县）未确定
-- [ ] 真实数据源 vs 样例数据未定
+- [x] 前端全套 UI 已实现，mock 数据可独立演示 ✅
+- [x] **后端选址引擎 + scenarios/layers/ai 路由已完成，54 项接口测试全通过** ✅
+- [ ] `docs/SCENARIOS.md` 仍是旧 S1–S5 描述，与 10 门类不一致 ← 下一个要解决的
+- [ ] 前端尚未切到真实后端（`VITE_USE_MOCK` 默认 true）
+- [ ] 数据来源/时点细节待确认（`data/README.md` 中"待确认"项）
+- [ ] 单位盖章流程（基本信息表 + 责任声明）
 
 ## Git 信息
 - 远端：https://github.com/wojiushilyj/AI_urban_plan（**公开，已推送**）
@@ -269,5 +271,46 @@
 1. 后端 `/api/layers` 接口（从 gpkg 读图层返回 GeoJSON），前端切换到 API 加载。
 2. 确认数据来源/时点细节，补全 `data/README.md` 与申报书数据声明。
 3. 后端 scenarios 路由与选址引擎接线（仍未完成）。
+
+---
+
+## 2026-09-10（晚间·后端选址引擎）
+
+**做了什么**
+- **补齐启动阻塞点**：新建 `backend/app/routers/scenarios.py`（此前缺失导致 `main.py` import 失败，后端根本起不来）。
+- **实现真实选址引擎** `backend/app/services/suitability.py`（原为 NotImplementedError 返回 501）：
+  候选池（控规工业用地 145 图斑）→ 硬约束一票否决（生态红线/永久基本农田/城市蓝线/路网缓冲）→
+  面积筛选（最小面积 + 目标规模区间 + 兜底放宽）→ 五维因子真实空间量测 → 组合赋权 → 三种算法排序 → Top-N。
+- **新增空间数据服务** `backend/app/services/spatial.py`：从 GeoPackage 读取 16 个图层、CRS 统一、
+  投影缓存、GeoJSON 输出（剔除 Shape_Length/Shape_Area 等内部字段）、STRtree 加速。
+- **新增图层接口** `/api/layers`、`/api/layers/{id}`、`/api/layers/{id}/meta`，并把 GeoJSON 挂到
+  `/data/layers` 静态路径，与前端 `api/layers.ts` 路径口径一致（后端可独立部署）。
+- **新增 AI 接口** `/api/ai/parse`、`/api/ai/chat`（规则版，无 Key 可用；换算口径与前端 utils/area.ts 对齐）。
+- **选址结果落库**：写入 SQLite `task` 表，新增 `GET /api/selection/result/{task_id}` 读回。
+- **测试脚本**：`scripts/engine_smoke.py`（无 HTTP 直测引擎）、`scripts/api_smoke.py`（HTTP 层 54 项断言）。
+- `backend/README.md`：启动方式、接口一览、算法口径、坐标系约定、已知边界。
+- `frontend/.env.example`：`VITE_USE_MOCK` 切换说明。
+
+**技术决策与理由**
+- **约束默认只启用 required 项**：库里只有「道路路网」而没有「高速/铁路」专层，若对全部道路一律加
+  100m 缓冲，145 个候选图斑会被剔到只剩 3 个——那是把约束用错，不是地块真的不合规。
+  因此 `required=false` 的约束改为**按需启用**（请求传 `constraints` 显式开启）。
+- **"城市规划"因子公式修正**：边界外用「形态规模得分 × 0.55」，严格低于边界内的 60 分基准，
+  避免"距开发边界越近分越高"的逻辑倒挂（原公式存在该隐患）。
+- **得分与排序解耦**：K-Means 模式最初把聚类优先级混入分值（×1000），导致 Top-5 得分清一色 96.0，
+  失去区分度。改为**聚类只影响排序、得分仍用 TOPSIS 贴近度**。
+- **如实声明数据缺口**：模板中的居民点、饮用水源保护区、地质灾害、行洪区、机场净空、污染源
+  六类约束**无对应图层**，引擎跳过并在 `message` 中逐条列明，绝不静默忽略。
+
+**当前状态**
+- 后端可启动（`uvicorn main:app --port 8000`），`scripts/api_smoke.py` **54 项断言全部通过**。
+- 实测（门类 G，临桂区 AOI）：候选池 145 → 可行 107 → Top-5，单次计算约 150ms（冷启动首帧稍慢）。
+- 三种算法得分均有区分度；面积约束（目标 8 公顷 ±50%）正确筛出 4–12 公顷地块 50 个。
+- 权重敏感性分析：Top-5 在两个维度 ±20% 扰动下最低重合率 0.8。
+
+**下一步（09-11）**
+1. `docs/SCENARIOS.md` 重写为 10 门类口径（当前仍是旧 S1–S5，申报书若照抄会出错）。
+2. 前端切真实后端联调（`frontend/.env` 置 `VITE_USE_MOCK=false`），核对几何渲染与候选卡片。
+3. 补齐 data/README.md 的数据来源与时点（当前 12 个图层来源标注为"待确认"）。
 
 ---
