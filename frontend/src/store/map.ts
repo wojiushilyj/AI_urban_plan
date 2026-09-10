@@ -27,6 +27,22 @@ export interface LayerGroup {
   expanded: boolean
 }
 
+/** 工具条「要素查询」模式下的单次拾取结果 */
+export interface FeaturePick {
+  /** 图层显示名（如「道路路网」） */
+  layerName: string
+  /** 几何类型中文（面 / 线 / 点） */
+  geomLabel: string
+  /** 要素属性（已剔除内部字段） */
+  properties: Record<string, unknown>
+  /** 几何体量测文案（面→面积 / 线→长度），无适用项时为 null */
+  measure: string | null
+  /** 点击位置：屏幕坐标（相对地图容器，像素） */
+  screen: { x: number; y: number }
+  /** 点击位置：经纬度文案（WGS84，保留 6 位小数） */
+  lngLat: string
+}
+
 export const useMapStore = defineStore('map', () => {
   const basemap = ref<BasemapId>('tianditu-vec')
   /** MapLibre 实例（非序列化，仅运行时引用） */
@@ -86,8 +102,11 @@ export const useMapStore = defineStore('map', () => {
   /** 弹窗状态 */
   const popupParcel = ref<CandidateParcel | null>(null)
 
-  /** 绘制/工具模式：pan | measure-dist | measure-area */
-  const toolMode = ref<'pan' | 'measure-dist' | 'measure-area'>('pan')
+  /** 要素查询（工具条）拾取到的要素信息；null = 未拾取 / 卡片关闭 */
+  const featurePick = ref<FeaturePick | null>(null)
+
+  /** 工具模式：pan | identify（要素查询）| measure-dist | measure-area */
+  const toolMode = ref<'pan' | 'identify' | 'measure-dist' | 'measure-area'>('pan')
 
   function toggleLayer(id: string): void {
     const l = layers.value.find((x) => x.id === id)
@@ -130,7 +149,7 @@ export const useMapStore = defineStore('map', () => {
 
   return {
     basemap, mapInstance, groups, layers, aoi, result,
-    selectedRank, popupParcel, toolMode,
+    selectedRank, popupParcel, toolMode, featurePick,
     toggleLayer, toggleGroup, toggleGroupExpand, isGroupAllOn, groupOnCount, layerVisible, setAoi,
   }
 })

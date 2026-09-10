@@ -69,6 +69,19 @@ export function polygonPerimeterM(poly: Polygon): number {
   return poly.coordinates.reduce((sum, r) => sum + ringPerimeterM(r), 0)
 }
 
+/** 折线长度（米，按首点纬度做局部等距近似） */
+export function lineLengthM(coords: Position[]): number {
+  if (coords.length < 2) return 0
+  const kx = mPerDegLng(coords[0][1])
+  let d = 0
+  for (let i = 0; i < coords.length - 1; i++) {
+    const dx = (coords[i + 1][0] - coords[i][0]) * kx
+    const dy = (coords[i + 1][1] - coords[i][1]) * M_PER_DEG_LAT
+    d += Math.hypot(dx, dy)
+  }
+  return d
+}
+
 /** 面积加权质心（退化时回退到首顶点） */
 export function centroid(poly: Polygon): XY {
   const r = closedRing(poly.coordinates[0])
@@ -251,4 +264,40 @@ export function featurePoint(f: Feature): XY {
 /** 面积换算：平方米 → 公顷（保留 2 位） */
 export function m2ToHa(m2: number): number {
   return Math.round((m2 / 10000) * 100) / 100
+}
+
+/** 几何类型中文标签（面 / 线 / 点），未知类型返回「要素」 */
+export function geometryTypeLabel(g: Geometry | null): string {
+  switch (g?.type) {
+    case 'Polygon':
+    case 'MultiPolygon':
+      return '面'
+    case 'LineString':
+    case 'MultiLineString':
+      return '线'
+    case 'Point':
+    case 'MultiPoint':
+      return '点'
+    default:
+      return '要素'
+  }
+}
+
+/**
+ * 几何量测文案（要素查询卡片用）：
+ * 面 → 面积（公顷）、线 → 长度（公里）；点与其它类型无适用量测，返回 null。
+ */
+export function geometryMeasureText(g: Geometry | null): string | null {
+  if (!g) return null
+  if (g.type === 'Polygon') return `${m2ToHa(polygonAreaM2(g)).toFixed(2)} 公顷`
+  if (g.type === 'MultiPolygon') {
+    const m2 = g.coordinates.reduce((s, rings) => s + polygonAreaM2({ type: 'Polygon', coordinates: rings }), 0)
+    return `${m2ToHa(m2).toFixed(2)} 公顷`
+  }
+  if (g.type === 'LineString') return `${(lineLengthM(g.coordinates) / 1000).toFixed(2)} 公里`
+  if (g.type === 'MultiLineString') {
+    const m = g.coordinates.reduce((s, c) => s + lineLengthM(c), 0)
+    return `${(m / 1000).toFixed(2)} 公里`
+  }
+  return null
 }

@@ -1,21 +1,25 @@
 <script setup lang="ts">
 /**
  * 中央地图舞台（模块 5）：
- * MapLibre 初始化、底图切换、结果渲染、测量、弹窗、图例、工具条。
+ * MapLibre 初始化、底图切换、结果渲染、要素查询、测量、弹窗、图例、工具条。
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import maplibregl from 'maplibre-gl'
+import type { Geometry } from 'geojson'
 import { ElMessage } from 'element-plus'
 import { useMap, TIANDITU_AVAILABLE } from '../../composables/useMap'
 import { useMapLayers } from '../../composables/useMapLayers'
 import { useMeasure } from '../../composables/useMeasure'
-import { useMapStore } from '../../store/map'
+import { useMapStore, type FeaturePick } from '../../store/map'
 import { useAppStore } from '../../store/app'
 import { useScenarioStore } from '../../store/scenario'
+import { geometryMeasureText, geometryTypeLabel } from '../../utils/geo'
+import { fmtScore } from '../../utils/format'
 import MapToolbar from '../map/MapToolbar.vue'
 import BasemapControl from '../map/BasemapControl.vue'
 import LayerManager from '../map/LayerManager.vue'
 import ParcelInfoCard from '../map/ParcelInfoCard.vue'
+import FeatureInfoCard from '../map/FeatureInfoCard.vue'
 
 const container = ref<HTMLDivElement>()
 const mapStore = useMapStore()
@@ -37,10 +41,48 @@ const { map, init, setBasemap } = useMap()
 const measure = useMeasure(() => map.value)
 const layers = useMapLayers(() => map.value, {
   onParcelClick: (parcel) => {
+    // 要素查询模式下由统一的拾取逻辑接管，避免同时弹出两张卡片
+    if (mapStore.toolMode === 'identify') return
     // 点击候选地块：选中 → 红色加粗描边 + 放大居中 + 右侧卡片
     mapStore.selectedRank = parcel.rank
   },
 })
+
+/* ==================== 要素查询（工具条「🔍」模式） ==================== */
+
+/** 把一次地图点击解析为要素信息；未命中任何要素时返回 null */
+function buildPick(e: maplibregl.MapMouseEvent): FeaturePick | null {
+  const hit = layers.pickTop(e, layers.pickLayers(mapStore.layers))
+  if (!hit) return null
+
+  const isCandidate = hit.layerId === 'candidates-fill'
+  const def = mapStore.layers.find((l) => `${l.id}-layer` === hit.layerId)
+  // 候选地块属性里的 parcel 是整份地块 JSON 字符串，剔除后只保留可读字段
+  const raw = { ...hit.feature.properties } as Record<string, unknown>
+  delete raw['parcel']
+
+  const g = hit.feature.geometry as Geometry | null
+  return {
+    layerName: isCandidate ? '候选地块' : (def?.name ?? hit.layerId),
+    geomLabel: geometryTypeLabel(g),
+    properties: isCandidate
+      ? {
+          候选编号: `No.${String(raw['rank'] ?? '—')}`,
+          综合得分: fmtScore(Number(raw['score'] ?? 0)),
+          地块编码: String(raw['code'] || '—'),
+        }
+      : raw,
+    measure: geometryMeasureText(g),
+    screen: { x: e.point.x, y: e.point.y },
+    lngLat: `${e.lngLat.lng.toFixed(6)}, ${e.lngLat.lat.toFixed(6)}`,
+  }
+}
+
+function onMapClick(e: maplibregl.MapMouseEvent): void {
+  if (mapStore.toolMode !== 'identify') return
+  // 命中要素则弹出卡片；点击空白处等价于关闭卡片
+  mapStore.featurePick = buildPick(e)
+}
 
 /** 候选地块图层的可见性（由图层面板「选址结果」大类控制） */
 const candidateVis = computed(() => ({
@@ -63,6 +105,8 @@ onMounted(() => {
   mapStore.mapInstance = m
   m.on('load', () => {
     layers.renderGeoLayers(mapStore.layers)
+    // 要素查询的点击监听挂在 map 上（不绑定具体图层），底图切换重建 style 后依然有效
+    m.on('click', onMapClick)
   })
 })
 
@@ -131,24 +175,38 @@ watch(
   { deep: true }
 )
 
-// 工具模式切换（测量）
+// 工具模式切换（要素查询 / 测量，三者互斥）
 watch(
   () => mapStore.toolMode,
   (mode) => {
-    if (mode === 'pan') return
-    if (mode === 'measure-dist' || mode === 'measure-area') {
-      const kind = mode === 'measure-dist' ? 'dist' : 'area'
-      measure.start(
-        kind,
-        (r) => {
-          const v = r.type === 'dist' ? `${(r.value / 1000).toFixed(2)} km` : `${(r.value / 1_000_000).toFixed(2)} km²`
-          appStore.setStatus(r.type === 'dist' ? `距离：${v}` : `面积：${v}`, 0)
-        },
-        () => {
-          mapStore.toolMode = 'pan'
-        }
-      )
+    const m = map.value
+    // 离开测量模式时务必收尾：否则监听残留、active 卡在 true，后续无法再次启动测量
+    if (mode !== 'measure-dist' && mode !== 'measure-area') measure.stop()
+
+    if (mode === 'identify') {
+      // 与地块卡片互斥，避免两张卡片同时在图上
+      mapStore.selectedRank = null
+      if (m) m.getCanvas().style.cursor = 'pointer'
+      return
     }
+
+    if (mode === 'pan') {
+      mapStore.featurePick = null
+      if (m) m.getCanvas().style.cursor = ''
+      return
+    }
+
+    const kind = mode === 'measure-dist' ? 'dist' : 'area'
+    measure.start(
+      kind,
+      (r) => {
+        const v = r.type === 'dist' ? `${(r.value / 1000).toFixed(2)} km` : `${(r.value / 1_000_000).toFixed(2)} km²`
+        appStore.setStatus(r.type === 'dist' ? `距离：${v}` : `面积：${v}`, 0)
+      },
+      () => {
+        mapStore.toolMode = 'pan'
+      }
+    )
   }
 )
 </script>
@@ -166,6 +224,7 @@ watch(
       :factor-names="factorNames"
       @close="mapStore.selectedRank = null"
     />
+    <FeatureInfoCard :pick="mapStore.featurePick" @close="mapStore.featurePick = null" />
   </div>
 </template>
 

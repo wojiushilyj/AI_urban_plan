@@ -198,6 +198,38 @@ export function useMapLayers(getMap: () => MlMap | null, hooks: LayerHooks = {})
     hooks.onParcelClick(parcel, e.lngLat)
   }
 
+  /**
+   * 可拾取的图层 id 列表（按渲染顺序，靠后的压在上层）。
+   * 含真实业务图层与候选地块面；不存在的图层自动跳过。
+   */
+  function pickLayers(defs: BusinessLayer[]): string[] {
+    const m = getMap()
+    if (!m) return []
+    const ids = defs.filter((d) => d.kind === 'geojson').map((d) => `${d.id}-layer`)
+    ids.push('candidates-fill')
+    return ids.filter((id) => m.getLayer(id))
+  }
+
+  /**
+   * 拾取点击位置最上层的要素（工具条「要素查询」模式用）。
+   *
+   * queryRenderedFeatures 的返回顺序不做保证，因此按图层叠加顺序逐个查询，
+   * 取最后一个命中的图层（最后添加的绘制在最上层）作为拾取结果。
+   */
+  function pickTop(
+    e: maplibregl.MapMouseEvent,
+    ids: string[]
+  ): { layerId: string; feature: maplibregl.MapGeoJSONFeature } | null {
+    const m = getMap()
+    if (!m) return null
+    let hit: { layerId: string; feature: maplibregl.MapGeoJSONFeature } | null = null
+    for (const id of ids) {
+      const fs = m.queryRenderedFeatures(e.point, { layers: [id] })
+      if (fs.length) hit = { layerId: id, feature: fs[0] }
+    }
+    return hit
+  }
+
   /** AOI 边界（模块 5.4 框选结果回显） */
   function renderAoi(aoi: Polygon | null): void {
     const m = getMap()
@@ -346,5 +378,5 @@ export function useMapLayers(getMap: () => MlMap | null, hooks: LayerHooks = {})
     }
   }
 
-  return { renderCandidates, renderAoi, renderGeoLayers, removeLayers }
+  return { renderCandidates, renderAoi, renderGeoLayers, removeLayers, pickLayers, pickTop }
 }
