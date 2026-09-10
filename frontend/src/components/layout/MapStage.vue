@@ -49,9 +49,10 @@ const candidateVis = computed(() => ({
 }))
 
 /** 把全部业务图层重新挂到当前 style（底图切换后调用） */
-function reapplyAll(): void {
-  // 真实业务图层始终重挂（不依赖计算结果）
-  layers.renderGeoLayers(mapStore.layers)
+async function reapplyAll(): Promise<void> {
+  // 真实业务图层始终重挂（不依赖计算结果）；必须等它加载完再画候选地块，
+  // 否则懒加载的大图层会晚一步挂上来、盖住候选地块（图层顺序 = 添加顺序）
+  await layers.renderGeoLayers(mapStore.layers)
   if (!mapStore.result) return
   layers.renderCandidates(mapStore.result, mapStore.selectedRank, candidateVis.value)
 }
@@ -120,9 +121,9 @@ watch(
 // 业务图层 / 候选地块图层开关（模块 5.2）
 watch(
   () => mapStore.layers,
-  (ls) => {
-    layers.renderGeoLayers(ls)
-    // 选址结果图层的可见性也由面板控制
+  async (ls) => {
+    await layers.renderGeoLayers(ls)
+    // 选址结果图层的可见性也由面板控制（放最后，保证候选地块在最上层）
     if (mapStore.result) {
       layers.renderCandidates(mapStore.result, mapStore.selectedRank, candidateVis.value)
     }
