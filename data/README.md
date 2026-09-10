@@ -1,7 +1,9 @@
 # 数据登记册（必填）
 
 > **铁律**：任何进入本目录的数据，必须在本文件登记。未登记数据禁止入库、禁止用于演示与申报。
-> `raw/`、`processed/` 中的内容已在 `.gitignore` 中排除，不会进 Git。
+> `raw/` 中的原始数据已在 `.gitignore` 中排除，不进 Git。
+> `processed/` 中的**处理后成果已入库**（2026-09-10 起，为交付与前端部署需要），前端副本位于
+> `frontend/public/data/layers/`，由 `scripts/preprocess.py` 生成。
 
 ## 坐标系约定（见 README.md §4）
 - 存储：**EPSG:4490**（CGCS2000 地理坐标）

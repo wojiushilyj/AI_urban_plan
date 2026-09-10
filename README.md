@@ -31,7 +31,9 @@
 ### 1.2 不可逾越的红线
 - **不得擅自更换技术栈。** 技术栈变更必须先在本文件或 `docs/PROGRESS.md` 记录理由，并经项目负责人确认。
 - **不得删除他人已提交的模块。** 重构前先在 PR/commit message 说明理由。
-- **不得把原始空间数据、涉密数据、个人信息提交进 Git。** `data/raw/`、`data/processed/`、`*.gdb`、`*.shp` 大文件一律在 `.gitignore` 中。
+- **原始空间数据、涉密数据、个人信息不得提交进 Git。** `data/raw/`、`*.gdb`、`*.shp`、遥感影像等一律在 `.gitignore` 中。
+  > 例外：`data/processed/`（处理后成果）与 `frontend/public/data/layers/`（前端副本）**已入库**（2026-09-10 起），
+  > 用于交付与前端部署；入库前须确认数据可公开，并在 `data/README.md` 登记。
 - **坐标系必须显式声明。** 见 §4。不允许出现"不知道这份数据是什么坐标系"就入库的情况。
 - **不得编造数据。** 演示数据若非真实来源，必须在文件/文档中明确标注 `样例数据 / SAMPLE`，**申报书中不得把样例数据说成真实数据**（声明第 1、2 条，虚假即取消资格）。
 - **不得引入需要付费 Key 才能跑起来的核心链路。** 地图/GIS 服务必须有可离线或免费额度的降级方案，评委复现时不能卡在 Key 上。
@@ -101,8 +103,8 @@ AI_urban_plan/
 │   ├── index.html
 │   └── src/
 ├── data/
-│   ├── raw/               ← 原始数据（gitignore）
-│   ├── processed/         ← 处理后数据（gitignore）
+│   ├── raw/               ← 原始数据（gitignore，不入库）
+│   ├── processed/         ← 处理后数据 layers.gpkg + geojson（已入库）
 │   └── README.md          ← 数据来源与坐标系说明（必填）
 ├── scripts/               ← 数据预处理、一键启动、演示脚本
 └── resources/             ← 申报书、图片、视频素材
