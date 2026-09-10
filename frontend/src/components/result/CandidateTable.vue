@@ -38,7 +38,8 @@ function rowClass({ row }: { row: { rank: number } }): string[] {
       <el-table-column label="编号" width="96">
         <template #default="{ row }">
           <span class="candidate-table__code">
-            <b class="candidate-table__rank">#{{ row.rank }}</b>{{ row.code }}
+            <b class="candidate-table__rank">No.{{ row.rank }}</b>
+            <span class="candidate-table__code-val">{{ row.code }}</span>
           </span>
         </template>
       </el-table-column>
@@ -67,17 +68,21 @@ function rowClass({ row }: { row: { rank: number } }): string[] {
   font-size: 13px;
   color: var(--text-secondary);
 }
-/* 地块编号：与地图上的编号标注一一对应 */
+/* 候选地块编号（与地图上的 No.x 标注一一对应）+ 地块编码 */
 .candidate-table__code {
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
-  font-size: 12px;
-  color: var(--text-regular);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
   white-space: nowrap;
 }
 .candidate-table__rank {
   color: var(--brand);
   font-weight: 700;
-  margin-right: 4px;
+}
+.candidate-table__code-val {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
 }
 .candidate-table__score {
   font-weight: 700;

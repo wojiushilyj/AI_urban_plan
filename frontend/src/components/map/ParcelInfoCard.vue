@@ -28,10 +28,7 @@ const factorRows = computed(() => {
   <transition name="parcel-card">
     <aside v-if="parcel" class="parcel-info-card">
       <header class="parcel-info-card__head">
-        <span class="parcel-info-card__rank">
-          候选地块 · No.{{ parcel.rank }}
-          <em v-if="parcel.code" class="parcel-info-card__code">{{ parcel.code }}</em>
-        </span>
+        <span class="parcel-info-card__rank">候选地块 · No.{{ parcel.rank }}</span>
         <el-button class="parcel-info-card__close" text @click="emit('close')">✕</el-button>
       </header>
 
@@ -41,6 +38,10 @@ const factorRows = computed(() => {
       </div>
 
       <div class="parcel-info-card__meta">
+        <div class="parcel-info-card__meta-row">
+          <span class="parcel-info-card__meta-label">地块编码</span>
+          <span class="parcel-info-card__meta-code">{{ parcel.code ?? '—' }}</span>
+        </div>
         <div class="parcel-info-card__meta-row">
           <span class="parcel-info-card__meta-label">来源</span>
           <span class="parcel-info-card__meta-val">{{ parcel.source ?? '控规工业用地' }}</span>
@@ -90,16 +91,12 @@ const factorRows = computed(() => {
   color: var(--text-regular);
   letter-spacing: 0.3px;
 }
-/* 地块编号（来源图层 + 要素序号） */
-.parcel-info-card__code {
-  margin-left: 6px;
-  padding: 1px 6px;
-  font-style: normal;
-  font-size: 11px;
-  font-weight: 500;
+/* 地块编码（由来源图层 + 要素序号生成，如 KG-065） */
+.parcel-info-card__meta-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 600;
+  letter-spacing: 0.3px;
   color: var(--brand);
-  background: var(--brand-light-9, rgba(59, 130, 246, 0.1));
-  border-radius: var(--radius-sm);
 }
 .parcel-info-card__close {
   font-size: 16px;
@@ -137,7 +134,7 @@ const factorRows = computed(() => {
 }
 .parcel-info-card__meta-label {
   flex-shrink: 0;
-  width: 40px;
+  width: 58px;
   color: var(--text-secondary);
 }
 .parcel-info-card__meta-val {

@@ -1,6 +1,7 @@
 /**
  * 结果图层渲染（模块 5.3 / 5.2）：
- * - 候选地块矢量（fill 按 score 分级 + line 边界 + 地块编号标注，数据来自真实控规工业用地图斑）
+ * - 候选地块矢量（fill 按 score 分级 + line 边界 + 候选地块编号 No.x 标注，
+ *   数据来自真实控规工业用地图斑）
  * - 真实业务图层（从 /data/layers/*.geojson 懒加载渲染，见 renderGeoLayers）
  * 底图 style 切换后由调用方 reapplyAll 重挂全部图层。
  */
@@ -19,17 +20,17 @@ export interface LayerHooks {
 export interface CandidateVisibility {
   /** 候选地块面 */
   parcels: boolean
-  /** 地块编号标注 */
+  /** 候选地块编号标注（No.1 / No.2 …） */
   labels: boolean
 }
 
 /** 编号标注贴图 id 前缀 */
-const LABEL_IMAGE_PREFIX = 'parcel-label-'
+const LABEL_IMAGE_PREFIX = 'parcel-label-no'
 /** 标注贴图按 2 倍分辨率绘制，addImage 的 pixelRatio 会把它还原为 1 倍显示尺寸 */
 const LABEL_PIXEL_RATIO = 2
 
 /**
- * 把地块编号绘制成贴图。
+ * 把候选地块编号绘制成贴图。
  *
  * 不使用 symbol 的 text-field：底图样式是 OSM / 天地图**栅格**样式，没有 glyphs 字体服务，
  * 文本会静默丢失。canvas 贴图零依赖、离线可用，且能被 preserveDrawingBuffer 的图纸导出捕获。
@@ -101,25 +102,22 @@ export function useMapLayers(getMap: () => MlMap | null, hooks: LayerHooks = {})
         properties: { rank: c.rank, score: c.score, code: c.code ?? '', parcel: JSON.stringify(c) },
       })),
     }
-    // 编号标注挂在图斑内点上（而非面要素）：面要素的标注锚点由 MapLibre 内部推算，
-    // 用内点可保证标注始终落在图斑内部。
-    const labels: FeatureCollection<Point, { rank: number; image: string; code: string }> = {
+    // 候选地块编号（No.1 / No.2 …）标注挂在图斑内点上（而非面要素）：
+    // 面要素的标注锚点由 MapLibre 内部推算，用内点可保证标注始终落在图斑内部。
+    const labels: FeatureCollection<Point, { rank: number; image: string }> = {
       type: 'FeatureCollection',
-      features: result.candidates.map((c) => {
-        const code = c.code?.trim() || `No.${c.rank}`
-        return {
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: interiorPoint(c.geometry) },
-          properties: { rank: c.rank, code, image: LABEL_IMAGE_PREFIX + code },
-        }
-      }),
+      features: result.candidates.map((c) => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: interiorPoint(c.geometry) },
+        properties: { rank: c.rank, image: LABEL_IMAGE_PREFIX + c.rank },
+      })),
     }
 
     // 编号贴图：底图 style 切换会清空已注册图片，此处按需补建
     for (const f of labels.features) {
       if (m.hasImage(f.properties.image)) continue
       try {
-        m.addImage(f.properties.image, makeLabelImage(f.properties.code), {
+        m.addImage(f.properties.image, makeLabelImage(`No.${f.properties.rank}`), {
           pixelRatio: LABEL_PIXEL_RATIO,
         })
       } catch (e) {

@@ -16,7 +16,7 @@
  *           几何尺度（面积 + 规整度）               → 建造成本
  *
  * 说明：源 SHP 仅含 Shape_Leng / Shape_Area 内部字段，无业务属性，
- * 因此地块编号由「来源图层 + 要素序号」生成，各因子得分为真实空间关系统计结果。
+ * 因此地块编码由「来源图层 + 要素序号」生成（如 KG-065），各因子得分为真实空间关系统计结果。
  */
 import type { Polygon } from 'geojson'
 import type { ScenarioDetail } from '../types/scenario'
