@@ -1,8 +1,9 @@
 /** 地图状态：底图、图层分组开关、AOI、选中地块、弹窗（模块 5） */
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { FeatureCollection, Polygon } from 'geojson'
+import type { Polygon } from 'geojson'
 import type { CandidateParcel, SelectionResponse } from '../types/selection'
+import { LAYER_URLS } from '../api/layers'
 
 export type BasemapId = 'osm' | 'tianditu-vec' | 'tianditu-img'
 
@@ -40,24 +41,24 @@ export const useMapStore = defineStore('map', () => {
     { id: 'facility', name: '服务与设施', expanded: false },
   ])
 
-  /** 业务图层（真实 12 个 + 结果 2 个），默认全部关闭，用户手动开启 */
+  /** 业务图层（真实 12 个），默认全部关闭，用户手动开启；路径统一由 api/layers.ts 维护 */
   const layers = ref<BusinessLayer[]>([
     // 底线管控
-    { id: 'perm-farmland', name: '永久基本农田', groupId: 'baseline', visible: false, kind: 'geojson', sourceUrl: '/data/layers/perm-farmland.geojson' },
-    { id: 'eco-redline', name: '生态保护红线', groupId: 'baseline', visible: false, kind: 'geojson', sourceUrl: '/data/layers/eco-redline.geojson' },
-    { id: 'urban-boundary', name: '城镇开发边界', groupId: 'baseline', visible: false, kind: 'geojson', sourceUrl: '/data/layers/urban-boundary.geojson' },
+    { id: 'perm-farmland', name: '永久基本农田', groupId: 'baseline', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['perm-farmland'] },
+    { id: 'eco-redline', name: '生态保护红线', groupId: 'baseline', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['eco-redline'] },
+    { id: 'urban-boundary', name: '城镇开发边界', groupId: 'baseline', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['urban-boundary'] },
     // 城市控制线
-    { id: 'yellow-line', name: '城市黄线', groupId: 'control-line', visible: false, kind: 'geojson', sourceUrl: '/data/layers/yellow-line.geojson' },
-    { id: 'blue-line', name: '城市蓝线', groupId: 'control-line', visible: false, kind: 'geojson', sourceUrl: '/data/layers/blue-line.geojson' },
-    { id: 'green-line', name: '城市绿线', groupId: 'control-line', visible: false, kind: 'geojson', sourceUrl: '/data/layers/green-line.geojson' },
+    { id: 'yellow-line', name: '城市黄线', groupId: 'control-line', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['yellow-line'] },
+    { id: 'blue-line', name: '城市蓝线', groupId: 'control-line', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['blue-line'] },
+    { id: 'green-line', name: '城市绿线', groupId: 'control-line', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['green-line'] },
     // 产业用地
-    { id: 'industrial-land', name: '工业用地', groupId: 'industry', visible: false, kind: 'geojson', sourceUrl: '/data/layers/industrial-land.geojson' },
-    { id: 'regulated-industrial', name: '控规工业用地', groupId: 'industry', visible: false, kind: 'geojson', sourceUrl: '/data/layers/regulated-industrial.geojson' },
-    { id: 'industrial-park', name: '产业园区边界', groupId: 'industry', visible: false, kind: 'geojson', sourceUrl: '/data/layers/industrial-park.geojson' },
+    { id: 'industrial-land', name: '工业用地', groupId: 'industry', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['industrial-land'] },
+    { id: 'regulated-industrial', name: '控规工业用地', groupId: 'industry', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['regulated-industrial'] },
+    { id: 'industrial-park', name: '产业园区边界', groupId: 'industry', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['industrial-park'] },
     // 服务与设施
-    { id: 'prod-service-point', name: '生产性服务点位（点）', groupId: 'facility', visible: false, kind: 'geojson', sourceUrl: '/data/layers/prod-service-point.geojson' },
-    { id: 'prod-service-area', name: '生产性服务点位（面）', groupId: 'facility', visible: false, kind: 'geojson', sourceUrl: '/data/layers/prod-service-area.geojson' },
-    { id: 'cultural-relic', name: '文物保护单位', groupId: 'facility', visible: false, kind: 'geojson', sourceUrl: '/data/layers/cultural-relic.geojson' },
+    { id: 'prod-service-point', name: '生产性服务点位（点）', groupId: 'facility', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['prod-service-point'] },
+    { id: 'prod-service-area', name: '生产性服务点位（面）', groupId: 'facility', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['prod-service-area'] },
+    { id: 'cultural-relic', name: '文物保护单位', groupId: 'facility', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['cultural-relic'] },
   ])
 
   /** 研究区：固定为桂林市临桂区（简化边界，样例数据） */
@@ -68,7 +69,6 @@ export const useMapStore = defineStore('map', () => {
   const aoi = ref<Polygon | null>(LINGUI_AOI)
   /** 当前计算结果（渲染用） */
   const result = ref<SelectionResponse | null>(null)
-  const heatGrid = ref<FeatureCollection<Polygon, { weight: number }> | null>(null)
 
   /** 选中的候选地块（地图-面板联动，模块 5.6） */
   const selectedRank = ref<number | null>(null)
@@ -113,7 +113,7 @@ export const useMapStore = defineStore('map', () => {
   }
 
   return {
-    basemap, mapInstance, groups, layers, aoi, result, heatGrid,
+    basemap, mapInstance, groups, layers, aoi, result,
     selectedRank, popupParcel, toolMode,
     toggleLayer, toggleGroup, toggleGroupExpand, isGroupAllOn, groupOnCount, setAoi,
   }

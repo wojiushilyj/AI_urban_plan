@@ -4,7 +4,7 @@ import { computed, ref } from 'vue'
 import type { ScenarioDetail } from '../types/scenario'
 import type { SelectionRequest, SelectionResponse } from '../types/selection'
 import { runSelection } from '../api/selection'
-import { generateHeatGrid } from '../mock/candidates'
+import { preloadSelectionLayers } from '../mock/candidates'
 import { runWithProgress } from '../mock/delay'
 import { useMapStore } from './map'
 import { useConfigStore } from './config'
@@ -59,7 +59,8 @@ export const useResultStore = defineStore('result', () => {
         weights_override: config.weights,
         algorithm: config.algorithm,
       }
-      // 先推 5 阶段进度（显示在聊天框），再返回结果
+      // 先并行预取空间图层（与进度动画重叠，避免进度走完后卡住），再推 5 阶段进度
+      preloadSelectionLayers()
       await runWithProgress((t) => {
         percent.value = t.percent
         ai.pushProgress(t.label)
@@ -68,7 +69,6 @@ export const useResultStore = defineStore('result', () => {
       const res = await runSelection(req, scenario)
       response.value = res
       map.result = res
-      map.heatGrid = generateHeatGrid(map.aoi!)
       app.setStatus(`计算完成：Top-${res.candidates.length} 候选地块已生成`, 0)
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e)

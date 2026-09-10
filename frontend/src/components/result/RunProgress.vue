@@ -45,6 +45,13 @@ const weightRows = computed(() =>
     weight: (config.weights[f.id] ?? 0) * 100,
   }))
 )
+
+/** 初选·计算流程（末段随算法切换） */
+const flowText = computed(
+  () =>
+    '候选池：控规工业用地图斑 → 初选：生态保护红线 / 永久基本农田硬约束一票否决 + 最小面积筛选 ' +
+    `→ 计算：组合赋权多因子评价 → 精选：${algo.value.name} 排序输出 Top-N 候选地块。`
+)
 </script>
 
 <template>
@@ -66,11 +73,11 @@ const weightRows = computed(() =>
 
       <div class="algo-doc__row">
         <span class="algo-doc__label">指标来源</span>
-        <span class="algo-doc__value">5 项评价维度（城市规划/交通物流/产业协同/基础配套/建造成本），因子标准化到 0–100 分。</span>
+        <span class="algo-doc__value">5 项评价维度（城市规划/交通物流/产业协同/基础配套/建造成本），由控规工业用地图斑与底线管控、现状工业用地、产业园区、服务点位等真实图层做空间关系统计后标准化到 0–100 分。</span>
       </div>
       <div class="algo-doc__row">
         <span class="algo-doc__label">初选·计算流程</span>
-        <span class="algo-doc__value">初选：叠加硬约束图层一票否决过滤 → 计算：组合赋权多因子评价 → 精选：连通聚类生成 Top-N 候选地块。</span>
+        <span class="algo-doc__value">{{ flowText }}</span>
       </div>
 
       <div class="algo-doc__divider" />

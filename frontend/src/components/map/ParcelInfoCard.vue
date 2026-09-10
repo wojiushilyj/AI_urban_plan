@@ -28,7 +28,10 @@ const factorRows = computed(() => {
   <transition name="parcel-card">
     <aside v-if="parcel" class="parcel-info-card">
       <header class="parcel-info-card__head">
-        <span class="parcel-info-card__rank">候选地块 · No.{{ parcel.rank }}</span>
+        <span class="parcel-info-card__rank">
+          候选地块 · No.{{ parcel.rank }}
+          <em v-if="parcel.code" class="parcel-info-card__code">{{ parcel.code }}</em>
+        </span>
         <el-button class="parcel-info-card__close" text @click="emit('close')">✕</el-button>
       </header>
 
@@ -38,6 +41,10 @@ const factorRows = computed(() => {
       </div>
 
       <div class="parcel-info-card__meta">
+        <div class="parcel-info-card__meta-row">
+          <span class="parcel-info-card__meta-label">来源</span>
+          <span class="parcel-info-card__meta-val">{{ parcel.source ?? '控规工业用地' }}</span>
+        </div>
         <div class="parcel-info-card__meta-row">
           <span class="parcel-info-card__meta-label">面积</span>
           <span class="parcel-info-card__meta-val">{{ parcel.area_ha }} 公顷</span>
@@ -82,6 +89,17 @@ const factorRows = computed(() => {
   font-weight: 600;
   color: var(--text-regular);
   letter-spacing: 0.3px;
+}
+/* 地块编号（来源图层 + 要素序号） */
+.parcel-info-card__code {
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--brand);
+  background: var(--brand-light-9, rgba(59, 130, 246, 0.1));
+  border-radius: var(--radius-sm);
 }
 .parcel-info-card__close {
   font-size: 16px;

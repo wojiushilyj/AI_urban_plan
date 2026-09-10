@@ -22,8 +22,12 @@ export interface CandidateParcel {
   geometry: Polygon
   factors: Record<string, number>
   notes: string
-  /** mock 扩展：聚类分组（K-Means 演示用） */
+  /** 聚类分组（K-Means 演示用）：0 优先开发类 / 1 条件适合类 / 2 储备备用类 */
   cluster?: number
+  /** 地块编号（由来源图层 + 要素序号生成） */
+  code?: string
+  /** 来源图层名称（当前固定为「控规工业用地」） */
+  source?: string
 }
 
 export interface SelectionResponse {

@@ -1,7 +1,6 @@
 /**
  * 结果图层渲染（模块 5.3 / 5.2）：
- * - 适宜度热力图（网格质心点 heatmap，浅黄→橙→红）
- * - 候选地块矢量（fill 按 score 分级 + line 边界）
+ * - 候选地块矢量（fill 按 score 分级 + line 边界，数据来自真实控规工业用地图斑）
  * - AOI 边界
  * - 真实业务图层（从 /data/layers/*.geojson 懒加载渲染，见 renderGeoLayers）
  * 底图 style 切换后由调用方 reapplyAll 重挂全部图层。
@@ -10,13 +9,11 @@ import type { Map as MlMap } from 'maplibre-gl'
 import type { FeatureCollection, Polygon } from 'geojson'
 import type { CandidateParcel, SelectionResponse } from '../types/selection'
 import type { BusinessLayer } from '../store/map'
+import { isLayerId, loadLayer } from '../api/layers'
 
 export interface LayerHooks {
   onParcelClick?: (parcel: CandidateParcel, lngLat: { lng: number; lat: number }) => void
 }
-
-/** 真实 GeoJSON 数据缓存（避免底图切换时重复请求，尤其是大图层） */
-const geoCache = new Map<string, FeatureCollection>()
 
 export function useMapLayers(getMap: () => MlMap | null, hooks: LayerHooks = {}) {
   function addSource(id: string, data: unknown): void {
@@ -134,13 +131,9 @@ export function useMapLayers(getMap: () => MlMap | null, hooks: LayerHooks = {})
       // 懒加载：仅当图层首次可见时才请求数据（大图层如永久基本农田 7MB 按需加载）
       if (!m.getSource(srcId) && def.visible) {
         try {
-          let data = geoCache.get(def.id)
-          if (!data) {
-            const resp = await fetch(def.sourceUrl)
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-            data = (await resp.json()) as FeatureCollection
-            geoCache.set(def.id, data)
-          }
+          if (!isLayerId(def.id)) throw new Error(`未登记的图层 id：${def.id}`)
+          // 与选址计算共用同一份缓存（见 api/layers.ts）
+          const data = await loadLayer(def.id)
           m.addSource(srcId, { type: 'geojson', data: data as never })
           if (style.type === 'circle') {
             m.addLayer({

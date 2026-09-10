@@ -11,8 +11,8 @@ const stats = computed(() => {
   const s = result.summary
   if (!s) return []
   return [
-    { label: '评价单元总数', value: fmtNumber(s.totalCells), unit: '格' },
-    { label: '可利用单元', value: fmtNumber(s.availableCells), unit: `格（${s.availableRate.toFixed(1)}%）` },
+    { label: '候选池图斑数', value: fmtNumber(s.totalCells), unit: '个' },
+    { label: '初筛通过图斑', value: fmtNumber(s.availableCells), unit: `个（${s.availableRate.toFixed(1)}%）` },
     { label: '候选地块数', value: String(s.candidateCount), unit: '个' },
     { label: '最佳综合得分', value: s.bestScore.toFixed(1), unit: '分' },
     { label: '首选地块面积', value: s.bestArea.toFixed(2), unit: '公顷' },
@@ -22,8 +22,8 @@ const stats = computed(() => {
 
 /** 无数据时的占位标签 */
 const PLACEHOLDER = [
-  { label: '评价单元总数', value: '—', unit: '' },
-  { label: '可利用单元', value: '—', unit: '' },
+  { label: '候选池图斑数', value: '—', unit: '' },
+  { label: '初筛通过图斑', value: '—', unit: '' },
   { label: '候选地块数', value: '—', unit: '' },
   { label: '最佳综合得分', value: '—', unit: '' },
   { label: '首选地块面积', value: '—', unit: '' },
