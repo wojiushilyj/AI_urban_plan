@@ -75,3 +75,8 @@ logs/
 
 # ---- 脚本临时产物 ----
 .gh_resp.json
+.req*.json
+sel.json
+api?.json
+tree.json
+dist/
