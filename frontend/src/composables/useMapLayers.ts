@@ -24,12 +24,18 @@ export interface CandidateVisibility {
   labels: boolean
 }
 
-/** 序号标注贴图 id 前缀（改前缀可让底图切换/热更新后重新注册贴图） */
-const LABEL_IMAGE_PREFIX = 'parcel-label-idx'
 /** 标注贴图按 2 倍分辨率绘制，addImage 的 pixelRatio 会把它还原为 1 倍显示尺寸 */
 const LABEL_PIXEL_RATIO = 2
-/** 序号徽标直径（逻辑像素） */
-const LABEL_DIAMETER = 20
+/** 序号徽标直径（逻辑像素，屏幕像素，不随缩放变化） */
+const LABEL_DIAMETER = 30
+/** 徽标描边宽度（逻辑像素） */
+const LABEL_STROKE = 2
+/**
+ * 序号标注贴图 id 前缀。
+ * 特意把直径编进 id：调整徽标尺寸后 id 随之改变，否则 MapLibre 的 hasImage 会命中
+ * 热更新 / 底图切换后残留的旧贴图，跳过重新注册，新尺寸不会生效。
+ */
+const LABEL_IMAGE_PREFIX = `parcel-label-idx${LABEL_DIAMETER}-`
 
 /**
  * 把候选地块序号绘制成圆形徽标贴图（白字蓝底圆标，视觉上即 ①②③）。
@@ -43,6 +49,8 @@ const LABEL_DIAMETER = 20
 function makeBadgeImage(rank: number): ImageData {
   const text = String(rank)
   const d = LABEL_DIAMETER
+  // 字号随直径缩放：一位数占直径 60%，两位数略小以留出左右留白
+  const fontSize = Math.round(d * (text.length > 1 ? 0.47 : 0.6))
   const font = (size: number) =>
     `700 ${size}px "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif`
   const canvas = document.createElement('canvas')
@@ -52,17 +60,18 @@ function makeBadgeImage(rank: number): ImageData {
   // 改动 canvas 尺寸会重置上下文状态，缩放/字体/对齐都需在此之后设置
   ctx.scale(LABEL_PIXEL_RATIO, LABEL_PIXEL_RATIO)
   ctx.beginPath()
-  ctx.arc(d / 2, d / 2, d / 2 - 1, 0, Math.PI * 2)
+  // 半径内缩描边的一半，让描边外沿正好落在贴图边界内
+  ctx.arc(d / 2, d / 2, d / 2 - LABEL_STROKE / 2, 0, Math.PI * 2)
   ctx.fillStyle = '#1D4ED8'
   ctx.fill()
-  ctx.lineWidth = 1.5
+  ctx.lineWidth = LABEL_STROKE
   ctx.strokeStyle = '#FFFFFF'
   ctx.stroke()
-  ctx.font = font(text.length > 1 ? 9 : 12)
+  ctx.font = font(fontSize)
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillStyle = '#FFFFFF'
-  ctx.fillText(text, d / 2, d / 2 + 0.5)
+  ctx.fillText(text, d / 2, d / 2 + fontSize * 0.04)
   return ctx.getImageData(0, 0, canvas.width, canvas.height)
 }
 
