@@ -5,6 +5,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { ScenarioDetail, WeightMap } from '../types/scenario'
+import { areaWindow, DEFAULT_AREA_TOLERANCE } from '../utils/area'
 
 export type AlgorithmId = 'topsis' | 'regression' | 'kmeans'
 
@@ -54,6 +55,12 @@ const DEFAULT_PREFERENCES: Record<string, PreferenceLevel> = {
   cost: 'neutral',
 }
 
+/**
+ * 用地规模容差（±比例）默认值，取值与说明见 `utils/area.ts`。
+ * 在此转出，方便 UI 与 store 统一从 config 取。
+ */
+export { DEFAULT_AREA_TOLERANCE } from '../utils/area'
+
 export const useConfigStore = defineStore('config', () => {
   /** 约束状态：id → {enabled, buffer_m} */
   const constraints = ref<Record<string, ConstraintState>>({})
@@ -66,6 +73,16 @@ export const useConfigStore = defineStore('config', () => {
   const topN = ref(5)
   const gridSize = ref(30)
   const minAreaHa = ref(1)
+  /** 用地规模目标（公顷）：AI 从聊天需求里解析；null = 用户未提及，不做面积匹配 */
+  const targetAreaHa = ref<number | null>(null)
+  /** 用地规模容差（±比例），默认 ±50%，见 DEFAULT_AREA_TOLERANCE */
+  const areaTolerance = ref(DEFAULT_AREA_TOLERANCE)
+
+  /** 用地规模允许区间（公顷）；未指定目标时为 null */
+  const areaRange = computed(() => {
+    const t = targetAreaHa.value
+    return t === null ? null : areaWindow(t, areaTolerance.value)
+  })
 
   /** 权重和（展示用） */
   const weightSum = computed(() =>
@@ -124,6 +141,7 @@ export const useConfigStore = defineStore('config', () => {
 
   return {
     constraints, weights, preferences, algorithm, alpha, topN, gridSize, minAreaHa,
+    targetAreaHa, areaTolerance, areaRange,
     weightSum, enabledConstraints,
     applyScenario, setPreference, computeWeights, normalizeWeights, resetWeights,
   }

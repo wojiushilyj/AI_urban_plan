@@ -5,6 +5,7 @@
 import type { ChatMessage, ParseResult, RequirementTemplate } from '../types/ai'
 import { SCENARIOS } from './scenarios'
 import { sleep } from './delay'
+import { parseAreaRequirement } from '../utils/area'
 
 /** 关键词 → 行业门类匹配规则（顺序即优先级，具体词在前） */
 const KEYWORD_MAP: { keywords: string[]; scenarioId: string }[] = [
@@ -42,7 +43,7 @@ export const TEMPLATES: RequirementTemplate[] = [
   {
     id: 't-equipment',
     label: '⚙️ 装备制造',
-    text: '为装备制造项目寻找连片用地，用地规模大、物流便利、产业配套好、拆迁量小。',
+    text: '为装备制造项目寻找连片用地，占地面积约 20 公顷，物流便利、产业配套好、拆迁量小。',
     scenarioId: 'C3',
   },
   {
@@ -54,7 +55,7 @@ export const TEMPLATES: RequirementTemplate[] = [
   {
     id: 't-logistics',
     label: '🚚 物流仓储',
-    text: '为物流园区选址，紧邻高速出入口、地块规整连片、地势平坦。',
+    text: '为物流园区选址，占地面积约 500 亩，紧邻高速出入口、地块规整连片、地势平坦。',
     scenarioId: 'G',
   },
   {
@@ -95,6 +96,9 @@ export async function mockParseRequirement(text: string): Promise<ParseResult> {
     .filter((c) => c.required || Math.random() > 0.5)
     .map((c) => c.id)
 
+  // 用地规模：从文本里抽取「数字 + 面积单位」（亩 / 公顷 / 平方米 …）
+  const area = parseAreaRequirement(text)
+
   return {
     scenarioId,
     scenarioName: scenario.name,
@@ -103,7 +107,11 @@ export async function mockParseRequirement(text: string): Promise<ParseResult> {
     weights,
     explanation: `已解析您的选址需求：识别到行业门类「${scenario.name}」${
       matchedKeywords.length ? `（命中关键词：${matchedKeywords.join('、')}）` : ''
-    }；建议启用 ${constraints.length} 项硬约束，权重可在上方「选址偏好」中设置。`,
+    }；建议启用 ${constraints.length} 项硬约束${
+      area ? `，用地规模目标约 ${area.targetHa} 公顷（原表述「${area.text}」）` : ''
+    }。权重可在上方「选址偏好」中设置。`,
+    targetAreaHa: area?.targetHa,
+    targetAreaText: area?.text,
   }
 }
 
@@ -117,6 +125,9 @@ export async function mockChat(history: ChatMessage[], userText: string): Promis
   }
   if (q.includes('约束') || q.includes('红线') || q.includes('农田')) {
     return '硬约束为布尔一票否决项：永久基本农田、生态保护红线等命中即剔除。带缓冲距离的约束（如河湖管理范围 30m）会自动应用，命中禁区即从候选地块中剔除。'
+  }
+  if (q.includes('占地') || q.includes('面积') || q.includes('规模')) {
+    return '需求里提到占地面积时（如「约 500 亩」「20 公顷」「10 万平方米」），系统会换算成公顷作为目标用地规模，并按 ±50% 的浮动区间筛选候选地块 —— 即只保留面积落在目标值上下 50% 以内的图斑。该浮动限值为初值，最终由算法设计人员按行业门类核定。'
   }
   if (q.includes('算法') || q.includes('TOPSIS') || q.includes('聚类')) {
     return '当前支持三种算法：TOPSIS（逼近理想解排序，适合综合评价）、多元回归（拟合历史选址偏好）、K-Means 聚类（按因子特征自动分组）。竞赛演示推荐 TOPSIS。'

@@ -13,6 +13,10 @@ export interface SelectionRequest {
   weights_override?: Record<string, number>
   /** 前端扩展：算法选型（模块清单 4.5，后端暂未实现） */
   algorithm?: 'topsis' | 'regression' | 'kmeans'
+  /** 用地规模目标（公顷）：用户在 AI 聊天中提到占地面积时解析得到；不传则不做面积匹配 */
+  target_area_ha?: number
+  /** 用地规模容差（±比例，0–1）。初期限定 0.5（±50%），具体限值由后端算法设计人员核定 */
+  area_tolerance?: number
 }
 
 export interface CandidateParcel {

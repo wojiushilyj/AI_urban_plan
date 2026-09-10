@@ -14,6 +14,16 @@ class SelectionRequest(BaseModel):
     weights_override: dict[str, float] | None = Field(
         default=None, description="前端手动调权，键为因子 ID")
 
+    # ---- 用地规模约束（用户需求中提到占地面积时生效）----
+    target_area_ha: float | None = Field(
+        default=None, ge=0.0,
+        description="目标用地规模（公顷），由 AI 需求解析得到；为空则不做规模匹配")
+    area_tolerance: float = Field(
+        default=0.5, ge=0.0, le=1.0,
+        description=("用地规模容差（±比例）。候选地块面积须落在 "
+                     "[目标×(1−容差), 目标×(1+容差)] 内。"
+                     "0.5（±50%）为初期限定，最终限值由算法设计人员按行业门类核定"))
+
 
 class CandidateParcel(BaseModel):
     rank: int

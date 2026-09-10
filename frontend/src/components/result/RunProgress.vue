@@ -46,12 +46,19 @@ const weightRows = computed(() =>
   }))
 )
 
-/** 初选·计算流程（末段随算法切换） */
-const flowText = computed(
-  () =>
-    '候选池：控规工业用地图斑 → 初选：生态保护红线 / 永久基本农田硬约束一票否决 + 最小面积筛选 ' +
-    `→ 计算：组合赋权多因子评价 → 精选：${algo.value.name} 排序输出 Top-N 候选地块。`
-)
+/** 初选·计算流程（含本次生效的用地规模区间，末段随算法切换） */
+const flowText = computed(() => {
+  const area = config.areaRange
+  const areaSeg =
+    area === null
+      ? `+ 用户未提及占地面积，不做规模匹配`
+      : `+ 用地规模 ${area.lo}–${area.hi} 公顷（目标 ${config.targetAreaHa} 公顷 ±${Math.round(config.areaTolerance * 100)}%）`
+  return (
+    '候选池：控规工业用地图斑 → 初选：生态保护红线 / 永久基本农田硬约束一票否决 ' +
+    `+ 最小面积 ${config.minAreaHa} 公顷 ` +
+    `${areaSeg} → 计算：组合赋权多因子评价 → 精选：${algo.value.name} 排序输出 Top-N 候选地块。`
+  )
+})
 </script>
 
 <template>

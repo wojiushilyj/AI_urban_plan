@@ -38,7 +38,7 @@ async function startSelection(): Promise<void> {
   if (text && !ai.thinking) {
     input.value = ''
     const pr = await ai.parse(text)
-    // 2) 自动应用 AI 识别出的门类与约束
+    // 2) 自动应用 AI 识别出的门类、约束与用地规模
     if (pr) {
       const detail = await scenario.switchScenario(pr.scenarioId)
       config.applyScenario(detail)
@@ -46,6 +46,8 @@ async function startSelection(): Promise<void> {
       for (const c of detail.constraints) {
         if (!c.required) config.constraints[c.id].enabled = enabledSet.has(c.id)
       }
+      // 需求中提到占地面积 → 记为用地规模目标（未提到则清空，不做面积匹配）
+      config.targetAreaHa = pr.targetAreaHa ?? null
       result.reset()
       map.selectedRank = null
     }
@@ -84,7 +86,7 @@ async function startSelection(): Promise<void> {
           type="textarea"
           :rows="5"
           resize="none"
-          placeholder="描述选址需求，例如：在临桂区为装备制造项目寻找连片用地，交通便利、产业配套好…"
+          placeholder="描述选址需求，例如：在临桂区为装备制造项目寻找连片用地，占地面积约 20 公顷，交通便利、产业配套好…"
           @keydown.enter.exact.prevent="startSelection"
         />
         <div class="chat-panel__actions">

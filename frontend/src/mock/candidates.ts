@@ -17,12 +17,17 @@
  *
  * 说明：源 SHP 仅含 Shape_Leng / Shape_Area 内部字段，无业务属性，
  * 因此地块编码由「来源图层 + 要素序号」生成（如 KG-065），各因子得分为真实空间关系统计结果。
+ *
+ * 初选口径：硬约束一票否决 + 最小面积 + 用地规模区间。
+ * 用地规模区间仅在用户需求中提到占地面积时生效（目标 ± 容差，容差初值 ±50%，
+ * 见 utils/area.ts 的 DEFAULT_AREA_TOLERANCE，最终限值由后端算法设计人员核定）。
  */
 import type { Polygon } from 'geojson'
 import type { ScenarioDetail } from '../types/scenario'
 import type { CandidateParcel, SelectionRequest, SelectionResponse as SR } from '../types/selection'
 import { loadLayers, type LayerFeatures, type LayerId } from '../api/layers'
 import { sleep } from './delay'
+import { areaWindow, DEFAULT_AREA_TOLERANCE } from '../utils/area'
 import {
   bboxOfGeometry,
   interiorPoint,
@@ -310,21 +315,55 @@ export async function mockRunSelection(
   }
   const totalParcels = pool.length
 
-  /* ---- 2) 初选：硬约束一票否决 + 最小面积 ---- */
+  /* ---- 2) 初选：硬约束一票否决 + 最小面积 + 用地规模区间 ---- */
   const constraints = HARD_CONSTRAINT_LAYERS.map((id) => ({ id, refs: toRefPolys(byId.get(id)) }))
+
+  /**
+   * 用地规模约束（用户需求中提到占地面积时生效）：
+   * 候选地块面积须落在 [目标 × (1 − 容差), 目标 × (1 + 容差)]。
+   * 容差初值为 ±50%（见 config.DEFAULT_AREA_TOLERANCE），最终限值由后端算法设计人员核定。
+   */
+  const targetArea = req.target_area_ha ?? null
+  const tolerance = req.area_tolerance ?? DEFAULT_AREA_TOLERANCE
+  const window = targetArea === null ? null : areaWindow(targetArea, tolerance)
+
   const hitBy = new Map<string, number>()
-  let feasible = pool.filter((p) => {
-    if (p.areaHa < req.min_area_ha) return false
-    for (const c of constraints) {
-      if (c.refs.some((r) => overlapsPolygon(p.geometry, p.bbox, r))) {
-        hitBy.set(c.id, (hitBy.get(c.id) ?? 0) + 1)
+  let belowMin = 0
+  let outsideWindow = 0
+  const applyFilters = (useAreaWindow: boolean): RawParcel[] =>
+    pool.filter((p) => {
+      if (p.areaHa < req.min_area_ha) {
+        belowMin++
         return false
       }
-    }
-    return true
-  })
+      if (useAreaWindow && window && (p.areaHa < window.lo || p.areaHa > window.hi)) {
+        outsideWindow++
+        return false
+      }
+      for (const c of constraints) {
+        if (c.refs.some((r) => overlapsPolygon(p.geometry, p.bbox, r))) {
+          hitBy.set(c.id, (hitBy.get(c.id) ?? 0) + 1)
+          return false
+        }
+      }
+      return true
+    })
 
-  // 兜底：若硬约束把候选池清空，则退化为仅按最小面积筛选，保证流程可演示
+  let feasible = applyFilters(true)
+
+  /**
+   * 兜底：面积区间可能把候选池清空（图斑规模天然集中在某一量级）。
+   * 依次放宽，保证流程始终可演示，并在 message 中如实说明放宽情况。
+   * 后续后端按行业门类核定容差后，这里的兜底可改为直接报错提示「无规模匹配地块」。
+   */
+  let areaRelaxed = false
+  if (!feasible.length && window) {
+    belowMin = 0
+    outsideWindow = 0
+    hitBy.clear()
+    feasible = applyFilters(false)
+    areaRelaxed = true
+  }
   if (!feasible.length) feasible = pool.filter((p) => p.areaHa >= req.min_area_ha)
   if (!feasible.length) feasible = pool
 
@@ -447,6 +486,15 @@ export async function mockRunSelection(
 
   const excluded = [...hitBy.entries()].map(([id, n]) => `${id === 'eco-redline' ? '生态保护红线' : '永久基本农田'} ${n}`).join('、')
 
+  // 初选口径说明：面积约束是否生效、是否触发兜底放宽，都在 message 里如实交代
+  const tolPct = Math.round(tolerance * 100)
+  const areaSeg =
+    targetArea === null
+      ? `最小面积 ${req.min_area_ha} 公顷`
+      : areaRelaxed
+        ? `最小面积 ${req.min_area_ha} 公顷（目标 ${targetArea} 公顷 ±${tolPct}% 即 ${window!.lo}–${window!.hi} 公顷内无匹配图斑，已放宽面积约束）`
+        : `用地规模 ${window!.lo}–${window!.hi} 公顷（目标 ${targetArea} 公顷，±${tolPct}%，规模不符筛除 ${outsideWindow} 个）与最小面积 ${req.min_area_ha} 公顷`
+
   return {
     task_id: `task-${Date.now().toString(36)}`,
     scenario_id: req.scenario_id,
@@ -456,7 +504,7 @@ export async function mockRunSelection(
     candidates,
     message:
       `（真实数据）候选池为控规工业用地 ${totalParcels} 个图斑，` +
-      `经底线管控硬约束（${excluded || '无冲突'}）与最小面积 ${req.min_area_ha} 公顷筛选后保留 ${feasible.length} 个，` +
+      `经底线管控硬约束（${excluded || '无冲突'}）与 ${areaSeg} 筛选后保留 ${feasible.length} 个，` +
       `${algoLabel} 排序输出 Top-${candidates.length} 候选地块。`,
   }
 }

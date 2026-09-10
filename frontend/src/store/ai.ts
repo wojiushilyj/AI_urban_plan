@@ -4,7 +4,8 @@ import { ref } from 'vue'
 import type { ChatMessage, ParseResult } from '../types/ai'
 import { parseRequirement, sendChat } from '../api/ai'
 import { TEMPLATES } from '../mock/aiChat'
-import { useConfigStore, FACTOR_DEFS } from './config'
+import { useConfigStore, DEFAULT_AREA_TOLERANCE, FACTOR_DEFS } from './config'
+import { areaWindow } from '../utils/area'
 
 let seq = 0
 function nextId(): string {
@@ -21,13 +22,26 @@ function buildAnalysis(r: ParseResult, weights: Record<string, number>): string 
   const rows = FACTOR_DEFS.map(
     (f) => `   · ${f.name} ${((weights[f.id] ?? 0) * 100).toFixed(1)}%`
   )
+  // 用地规模约束：仅当需求里提到占地面积时输出
+  const areaLine =
+    r.targetAreaHa === undefined
+      ? '   · 未指定用地规模，按最小面积约束筛选'
+      : (() => {
+          const w = areaWindow(r.targetAreaHa, DEFAULT_AREA_TOLERANCE)
+          return (
+            `   · 目标 ${r.targetAreaHa} 公顷（原表述「${r.targetAreaText ?? ''}」），` +
+            `允许上下浮动 ${DEFAULT_AREA_TOLERANCE * 100}% → ${w.lo}–${w.hi} 公顷`
+          )
+        })()
   return [
     '【AI 分析过程】',
     `1. 需求识别：解析您描述的选址需求，匹配到行业门类「${r.scenarioName}」${kw}。`,
     `2. 约束判定：该门类下建议启用 ${r.constraints.length} 项硬约束，命中禁区即一票否决。`,
-    '3. 权重计算：结合您在「选址偏好」中的在意程度，归一化后得到各维度权重：',
+    '3. 用地规模：',
+    areaLine,
+    '4. 权重计算：结合您在「选址偏好」中的在意程度，归一化后得到各维度权重：',
     ...rows,
-    '4. 结论：以上权重已同步用于选址计算，可直接点击「开始选址」。',
+    '5. 结论：以上约束与权重已同步用于选址计算，可直接点击「开始选址」。',
   ].join('\n')
 }
 

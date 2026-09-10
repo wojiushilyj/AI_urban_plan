@@ -37,6 +37,8 @@ async function apply(): Promise<void> {
   for (const c of detail.constraints) {
     if (!c.required) config.constraints[c.id].enabled = enabledSet.has(c.id)
   }
+  // 与 ChatPanel 口径一致：需求中提到占地面积才施加用地规模约束
+  config.targetAreaHa = pr.value.targetAreaHa ?? null
   result.reset()
   map.selectedRank = null
   ElMessage.success(`已应用「${pr.value.scenarioName}」门类与约束，权重由选址偏好决定`)

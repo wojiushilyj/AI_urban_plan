@@ -58,6 +58,9 @@ export const useResultStore = defineStore('result', () => {
         alpha: config.alpha,
         weights_override: config.weights,
         algorithm: config.algorithm,
+        // 用地规模约束：AI 从聊天需求里解析到占地面积时才传（容差默认 ±50%）
+        target_area_ha: config.targetAreaHa ?? undefined,
+        area_tolerance: config.areaTolerance,
       }
       // 先并行预取空间图层（与进度动画重叠，避免进度走完后卡住），再推 5 阶段进度
       preloadSelectionLayers()

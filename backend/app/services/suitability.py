@@ -5,13 +5,21 @@
   网格化 → 硬约束过滤 → 因子标准化 → AHP+熵权组合赋权 → 打分
   → 连通聚类生成候选地块 → 面积/形状筛选 → Top-N
 
+面积筛选口径：
+  1. 最小面积 min_area_ha（硬下限）
+  2. 用地规模区间——仅当 req.target_area_ha 不为空（用户需求提到占地面积）时生效，
+     保留面积落在 [目标×(1−area_tolerance), 目标×(1+area_tolerance)] 内的地块。
+     area_tolerance 默认 0.5（±50%），为初期限定，最终限值由算法设计人员按行业门类核定
+     （settings.DEFAULT_AREA_TOLERANCE；前端对应 utils/area.ts）。
+
 TODO(09-09 交付)：
   1. grid()        —— AOI 按 grid_size_m 在研究投影坐标系下网格化
   2. filter_hard() —— 约束图层叠加（GeoPandas sjoin / unary_union + buffer）
   3. normalize()   —— 正向/负向/区间型因子 → 0–100
   4. weight()      —— AHP（含 CR<0.1 一致性检验）+ 熵权，按 alpha 组合
   5. cluster()     —— 邻接网格聚类成地块，算面积(shape 在 EPSG:4525 下)与规整度
-  6. sensitivity() —— 权重 ±20% 扰动，检验 Top-N 排序稳定性
+  6. size_filter() —— 最小面积 + 用地规模区间（target_area_ha ± area_tolerance）
+  7. sensitivity() —— 权重 ±20% 扰动，检验 Top-N 排序稳定性
 """
 import uuid
 

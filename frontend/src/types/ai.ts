@@ -18,6 +18,10 @@ export interface ParseResult {
   weights: Record<string, number>
   /** 解析说明 */
   explanation: string
+  /** 用户提到的用地规模目标（公顷）；未提及则为 undefined，此时不施加面积约束 */
+  targetAreaHa?: number
+  /** 用地规模的原始表述（如「500亩」），用于对话回显 */
+  targetAreaText?: string
 }
 
 export interface RequirementTemplate {

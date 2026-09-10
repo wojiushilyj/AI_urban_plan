@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     DEFAULT_GRID_SIZE_M: int = 30       # 分析网格边长（米）
     DEFAULT_MIN_AREA_HA: float = 1.0    # 候选地块最小面积（公顷）
     DEFAULT_TOP_N: int = 5
+    # 用地规模容差（±比例）：用户在需求中提到占地面积时，候选地块面积须落在
+    # [目标 × (1 − 容差), 目标 × (1 + 容差)] 区间内。
+    # ⚠️ 0.5（±50%）只是**初期限定**，最终限值由算法设计人员按行业门类核定。
+    # 前端对应位置：frontend/src/utils/area.ts → DEFAULT_AREA_TOLERANCE，两处须同步。
+    DEFAULT_AREA_TOLERANCE: float = 0.5
 
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),
