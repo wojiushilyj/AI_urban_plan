@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
 
 import httpx
 
@@ -60,7 +61,14 @@ def main() -> int:
     r = c.get("/api/layers")
     lay = r.json()
     check("GET /api/layers 200", r.status_code == 200)
-    check("16 个图层", len(lay["layers"]) == 16, f"实际 {len(lay['layers'])}")
+    # 图层数跟随 data/processed/layers_manifest.json，避免每加一个图层就假失败
+    manifest_path = Path(__file__).resolve().parents[1] / "data" / "processed" / "layers_manifest.json"
+    if manifest_path.exists():
+        expect = len(json.loads(manifest_path.read_text(encoding="utf-8"))["layers"])
+        check(f"图层数与清单一致（{expect}）", len(lay["layers"]) == expect,
+              f"实际 {len(lay['layers'])}")
+    check("图层数 > 0", len(lay["layers"]) > 0)
+    check("全部图层可用", all(x.get("available") for x in lay["layers"]))
     check("分组非空", len(lay["groups"]) >= 5)
     r = c.get("/api/layers/eco-redline")
     fc = r.json()
