@@ -261,6 +261,8 @@ export function useMapLayers(getMap: () => MlMap | null, hooks: LayerHooks = {})
       type: 'fill' | 'circle' | 'line'
       /** 线图层自定义 paint（按属性分级着色/定宽），提供时覆盖 color/opacity */
       linePaint?: Record<string, unknown>
+      /** 面图层自定义 paint（按属性分级着色），提供时覆盖 color/opacity */
+      fillPaint?: Record<string, unknown>
     }
     const styleMap: Record<string, LayerStyle> = {
       'perm-farmland': { color: '#F59E0B', opacity: 0.35, type: 'fill' },
@@ -310,6 +312,46 @@ export function useMapLayers(getMap: () => MlMap | null, hooks: LayerHooks = {})
       'prod-service-point': { color: '#06B6D4', opacity: 0.9, type: 'circle' },
       'prod-service-area': { color: '#0EA5E9', opacity: 0.4, type: 'fill' },
       'cultural-relic': { color: '#DC2626', opacity: 0.5, type: 'fill' },
+      // 市政设施：按国标用地代码（字段前 4 位）区分电力/给水/排水/燃气/通信/邮政/水工
+      // 用 slice 而非匹配完整字符串，可兼容「1303供电用电」这类录入不一致的值
+      'municipal-land': {
+        color: '#0891B2',
+        opacity: 0.55,
+        type: 'fill',
+        fillPaint: {
+          'fill-color': [
+            'match', ['slice', ['get', '用地'], 0, 4],
+            '1301', '#38BDF8', // 供水
+            '1302', '#0284C7', // 排水
+            '1303', '#FACC15', // 供电
+            '1304', '#FB923C', // 供燃气
+            '1306', '#A78BFA', // 通信
+            '1307', '#22C55E', // 邮政
+            '1311', '#0891B2', // 水工设施
+            '#0891B2',
+          ],
+          'fill-opacity': 0.55,
+          'fill-outline-color': '#0E7490',
+        },
+      },
+      // 现状建筑：按层数分级（1 层浅灰 → 3 层深灰），作为现状底衬不抢主体图层
+      'current-building': {
+        color: '#FDE68A',
+        opacity: 0.4,
+        type: 'fill',
+        fillPaint: {
+          // 柔和鹅黄，按层数分级：层数越高颜色越深
+          'fill-color': [
+            'match', ['get', '层数'],
+            1, '#FEF3C7',
+            2, '#FDE68A',
+            3, '#FBBF24',
+            '#FEF3C7',
+          ],
+          'fill-opacity': 0.4,
+          'fill-outline-color': '#B45309',
+        },
+      },
     }
 
     for (const def of defs) {
@@ -358,11 +400,11 @@ export function useMapLayers(getMap: () => MlMap | null, hooks: LayerHooks = {})
               type: 'fill',
               source: srcId,
               layout: { visibility: 'visible' },
-              paint: {
+              paint: (style.fillPaint ?? {
                 'fill-color': style.color,
                 'fill-opacity': style.opacity,
                 'fill-outline-color': style.color,
-              },
+              }) as never,
             })
           }
         } catch (e) {

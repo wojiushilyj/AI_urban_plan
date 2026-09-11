@@ -26,6 +26,9 @@ export const LAYER_URLS = {
   'prod-service-point': '/data/layers/prod-service-point.geojson',
   'prod-service-area': '/data/layers/prod-service-area.geojson',
   'cultural-relic': '/data/layers/cultural-relic.geojson',
+  // 市政设施 / 现状建设（2026-09-11 新增，各自单独成类）
+  'municipal-land': '/data/layers/municipal-land.geojson',
+  'current-building': '/data/layers/current-building.geojson',
 } as const
 
 export type LayerId = keyof typeof LAYER_URLS

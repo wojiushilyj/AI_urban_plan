@@ -57,10 +57,13 @@ export const useMapStore = defineStore('map', () => {
     { id: 'facility', name: '服务与设施', expanded: false },
     // 交通类图层与原 4 大类语义不重合，单独成类（2026-09-10 新增）
     { id: 'transport', name: '交通设施', expanded: false },
+    // 市政设施 / 现状建设：与既有大类口径不同，各自单独成类（2026-09-11 新增）
+    { id: 'municipal', name: '市政设施', expanded: false },
+    { id: 'built', name: '现状建设', expanded: false },
     { id: 'result', name: '选址结果', expanded: true },
   ])
 
-  /** 业务图层（真实 16 个），默认全部关闭，用户手动开启；路径统一由 api/layers.ts 维护 */
+  /** 业务图层（真实 18 个），默认全部关闭，用户手动开启；路径统一由 api/layers.ts 维护 */
   const layers = ref<BusinessLayer[]>([
     // 底线管控
     { id: 'perm-farmland', name: '永久基本农田', groupId: 'baseline', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['perm-farmland'] },
@@ -83,6 +86,10 @@ export const useMapStore = defineStore('map', () => {
     { id: 'prod-service-point', name: '生产性服务点位（点）', groupId: 'facility', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['prod-service-point'] },
     { id: 'prod-service-area', name: '生产性服务点位（面）', groupId: 'facility', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['prod-service-area'] },
     { id: 'cultural-relic', name: '文物保护单位', groupId: 'facility', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['cultural-relic'] },
+    // 市政设施（供水/排水/供电/供燃气/通信/邮政/水工设施，81 图斑）
+    { id: 'municipal-land', name: '工业配套市政用地', groupId: 'municipal', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['municipal-land'] },
+    // 现状建设（7851 个建筑轮廓面，按「层数」分级着色）
+    { id: 'current-building', name: '现状建筑分布', groupId: 'built', visible: false, kind: 'geojson', sourceUrl: LAYER_URLS['current-building'] },
     // 选址结果（分析完成后由 useMapLayers 动态渲染，默认开启）
     { id: 'candidates', name: '候选地块', groupId: 'result', visible: true, kind: 'candidates' },
     { id: 'candidate-labels', name: '地块序号', groupId: 'result', visible: true, kind: 'candidates' },

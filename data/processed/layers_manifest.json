@@ -19,6 +19,14 @@
     [
       "transport",
       "交通设施"
+    ],
+    [
+      "municipal",
+      "市政设施"
+    ],
+    [
+      "built",
+      "现状建设"
     ]
   ],
   "layers": [
@@ -179,6 +187,28 @@
       "group": "facility",
       "features": 1,
       "geom_type": [
+        "Polygon"
+      ],
+      "src_crs": "补 EPSG:4525"
+    },
+    {
+      "id": "municipal-land",
+      "name": "工业配套市政用地",
+      "group": "municipal",
+      "features": 81,
+      "geom_type": [
+        "MultiPolygon",
+        "Polygon"
+      ],
+      "src_crs": "补 EPSG:4525"
+    },
+    {
+      "id": "current-building",
+      "name": "现状建筑分布",
+      "group": "built",
+      "features": 7851,
+      "geom_type": [
+        "MultiPolygon",
         "Polygon"
       ],
       "src_crs": "补 EPSG:4525"
