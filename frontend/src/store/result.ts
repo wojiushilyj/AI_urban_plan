@@ -56,8 +56,11 @@ export const useResultStore = defineStore('result', () => {
         min_area_ha: config.minAreaHa,
         top_n: config.topN,
         alpha: config.alpha,
-        weights_override: config.weights,
         algorithm: config.algorithm,
+        // 权重来源：expert 时用「选址偏好」算出的权重覆盖；learned/blended 交给后端决定
+        // （后端约定：weights_override 优先级高于 weight_mode，故非 expert 时必须留空）
+        weight_mode: config.weightMode,
+        weights_override: config.weightMode === 'expert' ? config.weights : undefined,
         // 用地规模约束：AI 从聊天需求里解析到占地面积时才传（容差默认 ±50%）
         target_area_ha: config.targetAreaHa ?? undefined,
         area_tolerance: config.areaTolerance,

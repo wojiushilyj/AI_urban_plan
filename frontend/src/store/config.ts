@@ -5,9 +5,17 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { ScenarioDetail, WeightMap } from '../types/scenario'
+import type { WeightMode } from '../types/selection'
 import { areaWindow, DEFAULT_AREA_TOLERANCE } from '../utils/area'
 
 export type AlgorithmId = 'topsis' | 'regression' | 'kmeans'
+
+/** 权重来源选项（AI 能力的对外呈现） */
+export const WEIGHT_MODES: { id: WeightMode; name: string; desc: string }[] = [
+  { id: 'expert', name: '专家权重', desc: 'AHP 层次分析 + 熵权法组合，专家知识主导' },
+  { id: 'learned', name: 'AI 学习权重', desc: '从临桂区真实开发事实中反推的区位偏好' },
+  { id: 'blended', name: '专家 + AI', desc: '两者加权平均，兼顾经验与数据' },
+]
 
 export const ALGORITHM_OPTIONS: { id: AlgorithmId; name: string; desc: string }[] = [
   { id: 'topsis', name: 'TOPSIS', desc: '逼近理想解排序，多因子综合评价，适合候选地块排序' },
@@ -69,6 +77,8 @@ export const useConfigStore = defineStore('config', () => {
   /** 选址偏好：维度 id → 在意程度 */
   const preferences = ref<Record<string, PreferenceLevel>>({ ...DEFAULT_PREFERENCES })
   const algorithm = ref<AlgorithmId>('topsis')
+  /** 权重来源：专家 / AI 学习 / 各半（见 WEIGHT_MODES） */
+  const weightMode = ref<WeightMode>('expert')
   const alpha = ref(0.5)
   const topN = ref(5)
   const gridSize = ref(30)
@@ -140,7 +150,7 @@ export const useConfigStore = defineStore('config', () => {
   )
 
   return {
-    constraints, weights, preferences, algorithm, alpha, topN, gridSize, minAreaHa,
+    constraints, weights, preferences, algorithm, weightMode, alpha, topN, gridSize, minAreaHa,
     targetAreaHa, areaTolerance, areaRange,
     weightSum, enabledConstraints,
     applyScenario, setPreference, computeWeights, normalizeWeights, resetWeights,

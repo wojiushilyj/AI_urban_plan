@@ -12,6 +12,7 @@ import { useMapStore } from '../../store/map'
 import ChatMessage from './ChatMessage.vue'
 import ScenarioSwitcher from '../scenario/ScenarioSwitcher.vue'
 import PreferenceCard from '../config/PreferenceCard.vue'
+import AiModelCard from './AiModelCard.vue'
 import CardContainer from '../common/CardContainer.vue'
 
 const ai = useAiStore()
@@ -70,6 +71,7 @@ async function startSelection(): Promise<void> {
         <ScenarioSwitcher class="chat-panel__scenario" />
       </CardContainer>
       <PreferenceCard />
+      <AiModelCard />
     </div>
 
     <div class="chat-panel__chat">

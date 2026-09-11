@@ -141,6 +141,80 @@ def main() -> int:
     r = c.get("/data/layers/eco-redline.geojson")
     check("GET /data/layers/*.geojson 200", r.status_code == 200)
 
+    # ------------------------------------------------------------------ #
+    # AI 能力：偏好学习模型 + 可解释性 + 稳健性
+    # ------------------------------------------------------------------ #
+    print("\n--- AI 偏好学习模型 ---")
+    r = c.get("/api/ai/model")
+    check("GET /api/ai/model 200", r.status_code == 200)
+    m = r.json()
+    check("模型可用", m.get("available") is True, str(m.get("reason"))[:80])
+    if m.get("available"):
+        check("样本量与实测一致", m["samples"] == 145 and m["positives"] == 66,
+              f"{m.get('samples')}/{m.get('positives')}")
+        check("报告交叉验证 AUC", 0.5 < m["metrics"]["auc_mean"] < 1.0,
+              str(m["metrics"]["auc_mean"]))
+        check("AUC 高于随机基线 0.5", m["metrics"]["auc_mean"] > 0.5)
+        check("学习权重和为 1", abs(sum(m["learned_weights"].values()) - 1) < 0.01)
+        check("学习权重覆盖 5 个维度", len(m["learned_weights"]) == 5)
+        check("含消融实验", len(m.get("ablation", {})) >= 3)
+        check("含单特征 AUC", len(m.get("univariate_auc", {})) >= 4)
+        check("声明数据泄漏规避策略", "leakage_note" in m and len(m["leakage_note"]) > 20)
+        # 泄漏审计的关键结论必须可复核：特征里不能出现 cost（含建筑密度）
+        check("特征不含 cost（规避泄漏）", "cost" not in m["features"], str(m["features"]))
+        check("负系数维度不给正权重",
+              all(m["learned_weights"][f] == 0 or m["coefficients"][f] >= 0
+                  for f in m["features"] if f in m["learned_weights"]))
+
+    r = c.get("/api/ai/model/parcels?limit=10")
+    check("GET /api/ai/model/parcels 200", r.status_code == 200)
+    pj = r.json()
+    check("样本明细非空", len(pj.get("items", [])) == 10)
+    check("样本含真实标签", all(x["label"] in (0, 1) for x in pj["items"]))
+
+    print("\n--- 权重来源切换（AI 接入点）---")
+    base_body = {"scenario_id": "G", "aoi": AOI, "top_n": 3, "algorithm": "topsis"}
+    wmap = {}
+    for mode in ("expert", "learned", "blended"):
+        r = c.post("/api/selection/run", json={**base_body, "weight_mode": mode})
+        check(f"[{mode}] 200", r.status_code == 200)
+        d = r.json()
+        wmap[mode] = d["weights"]
+        check(f"[{mode}] 声明了权重来源", len(d["weight_source"]) > 4, d["weight_source"])
+        check(f"[{mode}] 权重和为 1", abs(sum(d["weights"].values()) - 1) < 0.01)
+        check(f"[{mode}] 回传专家权重作对照", set(d["expert_weights"]) == set(d["weights"]))
+    check("learned 与 expert 权重不同", wmap["learned"] != wmap["expert"],
+          f"learned={wmap['learned']} expert={wmap['expert']}")
+
+    print("\n--- 可解释 AI：因子贡献分解 ---")
+    r = c.post("/api/selection/run", json=base_body)
+    d = r.json()
+    c0 = d["candidates"][0]
+    check("候选含 contributions", len(c0["contributions"]) == 5, str(c0.get("contributions")))
+    check("贡献有正有负（优势/短板可区分）",
+          any(v > 0 for v in c0["contributions"].values())
+          and any(v < 0 for v in c0["contributions"].values()))
+    check("top_driver 是正贡献项",
+          c0["top_driver"] and c0["contributions"][c0["top_driver"]] > 0)
+    check("top_weakness 是负贡献项",
+          c0["top_weakness"] and c0["contributions"][c0["top_weakness"]] < 0)
+    check("sensitivity 为平均绝对贡献（非负）",
+          all(v >= 0 for v in d["sensitivity"].values()), str(d["sensitivity"]))
+    check("候选含 build_density（拆迁量）",
+          all(0.0 <= x["build_density"] <= 1.0 for x in d["candidates"]))
+
+    print("\n--- 稳健性：蒙特卡洛入选概率 ---")
+    check("返回 robustness", isinstance(d["robustness"], dict) and d["robustness"])
+    rb = d["robustness"]
+    check("扰动 200 次", rb.get("samples") == 200, str(rb.get("samples")))
+    check("每个 Top-N 都有入选概率", len(rb.get("prob_top_n", [])) == len(d["candidates"]))
+    check("概率在 0–1 之间",
+          all(0.0 <= p <= 1.0 for p in rb.get("prob_top_n", [])), str(rb.get("prob_top_n")))
+    check("候选地块带 robustness 字段",
+          all(x.get("robustness") is not None for x in d["candidates"]))
+    check("排名越靠前概率越高",
+          rb["prob_top_n"] == sorted(rb["prob_top_n"], reverse=True), str(rb["prob_top_n"]))
+
     print(f"\n{'=' * 56}\n通过 {passed} 项，失败 {failed} 项\n{'=' * 56}")
     return 1 if failed else 0
 

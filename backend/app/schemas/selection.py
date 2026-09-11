@@ -13,7 +13,14 @@ class SelectionRequest(BaseModel):
     alpha: float = Field(default=0.5, ge=0.0, le=1.0,
                          description="AHP 主观权重占比；1-α 为熵权法客观权重占比")
     weights_override: dict[str, float] | None = Field(
-        default=None, description="前端偏好权重，键为因子 ID；提供时优先于 AHP+熵权组合")
+        default=None, description="前端偏好权重，键为因子 ID；提供时优先于其它赋权方式")
+
+    # ---- 权重来源（AI 能力的接入点）----
+    weight_mode: Literal["expert", "learned", "blended"] = Field(
+        default="expert",
+        description=("expert=AHP+熵权（默认，专家知识主导）；"
+                     "learned=AI 从真实开发事实学到的权重；"
+                     "blended=两者各半"))
 
     # ---- 硬约束启用集合 ----
     constraints: list[str] | None = Field(
@@ -49,6 +56,19 @@ class CandidateParcel(BaseModel):
     code: str | None = Field(default=None, description="地块编码，由来源图层 + 要素序号生成")
     source: str | None = Field(default=None, description="来源图层名称")
 
+    # ---- 可解释 AI：因子贡献分解（留一法）----
+    contributions: dict[str, float] = Field(
+        default={},
+        description=("各因子对该地块排序分的边际贡献（留一法：把该因子替换为全域均值后重算）。"
+                     "正值 = 该因子把地块往上拉（优势）；负值 = 往下压（短板）。"))
+    top_driver: str = Field(default="", description="贡献最大的**正**项（主导优势），无正项时为空")
+    top_weakness: str = Field(default="", description="贡献最小的负项（主要短板），无负项时为空")
+    build_density: float = Field(default=0.0, description="地块内现状建筑占地率（拆迁量代理）")
+
+    # ---- 稳健性：该地块进入 Top-N 的蒙特卡洛概率 ----
+    robustness: float | None = Field(
+        default=None, description="权重扰动下该地块保持在 Top-N 的概率（0–1）")
+
 
 class SelectionResponse(BaseModel):
     task_id: str
@@ -58,7 +78,16 @@ class SelectionResponse(BaseModel):
     available_cells: int
     candidates: list[CandidateParcel] = []
     message: str = ""
-    # ---- 引擎诊断（前端可选使用，不影响既有契约）----
+
+    # ---- 权重来源（便于前端展示与复核）----
     weights: dict[str, float] = Field(default={}, description="本次实际生效的组合权重")
-    sensitivity: dict[str, Any] = Field(
-        default={}, description="权重 ±20% 扰动下的 Top-N 稳定性诊断")
+    expert_weights: dict[str, float] = Field(
+        default={}, description="对照用的 AHP+熵权专家权重，便于与 AI 学习权重对比")
+    weight_mode: str = Field(default="expert", description="本次使用的权重来源")
+    weight_source: str = Field(default="", description="权重来源的中文说明")
+
+    # ---- 引擎诊断（前端可选使用）----
+    sensitivity: dict[str, float] = Field(
+        default={}, description="各因子的全局平均边际贡献（留一法）")
+    robustness: dict[str, Any] = Field(
+        default={}, description="蒙特卡洛稳健性摘要：Top-N 入选概率与平均稳定性")

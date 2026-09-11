@@ -104,6 +104,47 @@ def main() -> int:
     check("前端扩展字段 weights 已返回", "weights" in res and len(res["weights"]) == 5)
     check("前端扩展字段 sensitivity 已返回", "sensitivity" in res)
 
+    # ---------- 前端 TS 新增声明的字段（types/selection.ts）----------
+    print("\n--- 契约 B2：AI 能力相关新增字段 ---")
+    ok, msg = has_keys(res, ["weights", "expert_weights", "weight_mode",
+                             "weight_source", "sensitivity", "robustness"])
+    check("SelectionResponse 新增字段齐全", ok, msg)
+    check("expert_weights 覆盖 5 维", len(res.get("expert_weights", {})) == 5)
+    check("weight_mode 取值合法",
+          res.get("weight_mode") in ("expert", "learned", "blended"), str(res.get("weight_mode")))
+    check("robustness 结构完整",
+          has_keys(res.get("robustness") or {}, ["samples", "top_n", "prob_top_n", "mean_stability"])[0],
+          str(res.get("robustness"))[:80])
+
+    ok, msg = has_keys(cand, ["contributions", "top_driver", "top_weakness",
+                              "build_density", "robustness"])
+    check("CandidateParcel 新增字段齐全（前端会读）", ok, msg)
+    check("contributions 覆盖 5 维", len(cand.get("contributions") or {}) == 5)
+    check("build_density 在 0–1", 0 <= (cand.get("build_density") or 0) <= 1)
+    check("robustness 为 0–1 概率",
+          cand.get("robustness") is None or 0 <= cand["robustness"] <= 1,
+          str(cand.get("robustness")))
+
+    # ---------- AiModelInfo（types/api/ai.ts + components/ai/AiModelCard.vue）----------
+    print("\n--- 契约 E：AiModelInfo（AI 偏好学习模型）---")
+    r = c.get("/api/ai/model")
+    check("GET /api/ai/model 可用（代理链路）", r.status_code == 200)
+    mi = r.json()
+    ok, msg = has_keys(mi, ["available"])
+    check("AiModelInfo 含 available", ok, msg)
+    if mi.get("available"):
+        ok, msg = has_keys(mi, ["algo", "task", "samples", "positives", "negatives",
+                                "features", "feature_labels", "coefficients", "metrics",
+                                "ablation", "univariate_auc", "learned_weights",
+                                "leakage_note", "group_contrast"])
+        check("AiModelInfo 字段齐全", ok, msg)
+        ok, msg = has_keys(mi["metrics"], ["auc_mean", "auc_std", "acc_mean", "folds"])
+        check("metrics 结构完整", ok, msg)
+        check("learned_weights 覆盖 5 维", len(mi["learned_weights"]) == 5)
+        check("feature_labels 覆盖全部特征",
+              set(mi["feature_labels"]) >= set(mi["features"]))
+        check("ablation 每项含 auc", all("auc" in v for v in mi["ablation"].values()))
+
     # ---------- ParseResult ----------
     print("\n--- 契约 C：ParseResult（AI 需求解析）---")
     r = c.post("/api/ai/parse", json={"text": "为物流园区选址，占地面积约 500 亩"})
