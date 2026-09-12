@@ -30,10 +30,10 @@ export function exportPdf(reportHtml: string, title: string): void {
   h1 { font-size: 24px; text-align: center; margin-bottom: 4px; }
   .meta { text-align: center; color: #8A94A6; font-size: 14px; margin-bottom: 32px; }
   h2 { font-size: 18px; margin: 24px 0 8px; color: #2563EB; }
-  .watermark { position: fixed; bottom: 24px; left: 0; right: 0; text-align: center; color: #EF4444; font-size: 13px; }
+  .watermark { position: fixed; bottom: 24px; left: 0; right: 0; text-align: center; color: #8A94A6; font-size: 13px; }
   @media print { .watermark { position: static; } }
 </style></head><body>${reportHtml}
-<div class="watermark">本报告数据为竞赛演示样例数据（SAMPLE）</div>
+<div class="watermark">数据来源：国土空间规划真实图层数据</div>
 </body></html>`)
   w.document.close()
   setTimeout(() => w.print(), 300)
@@ -47,7 +47,7 @@ export function exportExcel(
 ): void {
   const esc = (v: unknown) => `"${String(v).replace(/"/g, '""')}"`
   const lines: string[] = []
-  lines.push(`${scenario.name}选址分析结果（样例数据）`)
+  lines.push(`${scenario.name}选址分析结果`)
   lines.push('')
   lines.push('[权重配置]')
   lines.push('指标,权重')

@@ -135,5 +135,5 @@ export async function mockChat(history: ChatMessage[], userText: string): Promis
   if (q.includes('导出') || q.includes('报告')) {
     return '计算完成后，可在右侧「报告导出」页一键生成选址报告，支持 PDF（打印）、Excel（权重与候选表）、图纸图片三种格式导出。'
   }
-  return `收到您的需求。我可以帮您：① 解析自然语言选址需求，自动匹配行业门类并给出约束建议；② 解释任意指标含义；③ 介绍算法选型。当前为样例数据演示模式。`
+  return `收到您的需求。我可以帮您：① 解析自然语言选址需求，自动匹配行业门类并给出约束建议；② 解释任意指标含义；③ 介绍算法选型。`
 }

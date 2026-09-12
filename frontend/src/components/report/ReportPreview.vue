@@ -9,13 +9,12 @@ defineProps<{ report: ReportDoc }>()
   <div class="report-preview">
     <div class="report-preview__head">
       <h1>{{ report.title }}</h1>
-      <p class="report-preview__meta">生成时间：{{ report.generatedAt }} · 样例数据</p>
+      <p class="report-preview__meta">生成时间：{{ report.generatedAt }}</p>
     </div>
     <div v-for="(s, i) in report.sections" :key="i" class="report-preview__section">
       <h2>{{ s.title }}</h2>
       <p>{{ s.content }}</p>
     </div>
-    <div class="report-preview__watermark">SAMPLE · 演示样例数据</div>
   </div>
 </template>
 
@@ -51,12 +50,5 @@ defineProps<{ report: ReportDoc }>()
 }
 .report-preview__section p {
   white-space: pre-wrap;
-}
-.report-preview__watermark {
-  margin-top: var(--gap-md);
-  text-align: center;
-  font-size: 12px;
-  color: var(--c-danger);
-  letter-spacing: 1px;
 }
 </style>

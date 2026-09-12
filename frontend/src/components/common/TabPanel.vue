@@ -42,4 +42,14 @@ const active = defineModel<string>('active', { required: true })
   gap: 4px;
   font-size: 15px;
 }
+/* 选中页签：蓝色背景 + 白色文字（用户要求），圆角只留顶部与下划线呼应 */
+.tab-panel :deep(.el-tabs__item.is-active) {
+  background: var(--brand, var(--el-color-primary));
+  color: #fff;
+  border-radius: 8px 8px 0 0;
+}
+.tab-panel :deep(.el-tabs__item.is-active:hover),
+.tab-panel :deep(.el-tabs__item.is-active:focus) {
+  color: #fff;
+}
 </style>

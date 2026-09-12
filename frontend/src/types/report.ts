@@ -12,5 +12,4 @@ export interface ReportDoc {
   generatedAt: string
   scenarioName: string
   sections: ReportSection[]
-  sampleData: true
 }

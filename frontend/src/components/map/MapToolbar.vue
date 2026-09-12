@@ -36,7 +36,7 @@ function zoom(delta: number): void {
 function snapshot(): void {
   if (!mapStore.mapInstance) return
   doExport('image', { map: mapStore.mapInstance })
-  ElMessage.success('图纸图片已导出（样例数据）')
+  ElMessage.success('图纸图片已导出')
 }
 </script>
 

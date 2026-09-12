@@ -4,12 +4,15 @@
  *
  * 模型以「控规工业地块是否已被实际开发」为标签，从临桂区真实开发事实中
  * 反推区位偏好权重（详见 backend/app/services/ai_model.py）。
- * 后端不可用时（mock 模式）整卡自动隐藏，不影响演示。
+ * 后端不可用时（mock 模式）显示不可用提示，不影响演示。
+ * 传 embedded 时去掉卡片外壳与标题，供 PreferenceTabsCard 页签嵌入。
  */
 import { computed, onMounted, ref } from 'vue'
 import { getAiModel, type AiModelInfo } from '../../api/ai'
 import { FACTOR_DEFS, WEIGHT_MODES, useConfigStore } from '../../store/config'
 import { useResultStore } from '../../store/result'
+
+defineProps<{ embedded?: boolean }>()
 
 const config = useConfigStore()
 const result = useResultStore()
@@ -64,10 +67,9 @@ onMounted(load)
 </script>
 
 <template>
-  <div v-if="!failed" class="ai-card">
-    <div class="ai-card__title">
+  <div class="ai-card" :class="{ 'is-embedded': embedded }">
+    <div v-if="!embedded" class="ai-card__title">
       <span>AI 偏好学习</span>
-      <span class="ai-card__badge">机器学习</span>
     </div>
 
     <div class="ai-card__body">
@@ -151,7 +153,7 @@ onMounted(load)
       </template>
 
       <div v-else class="ai-card__empty">
-        {{ model?.reason ?? (loading ? '正在载入模型…' : '模型不可用') }}
+        {{ failed ? '模型数据加载失败' : (model?.reason ?? (loading ? '正在载入模型…' : '模型不可用')) }}
       </div>
     </div>
   </div>
@@ -166,6 +168,15 @@ onMounted(load)
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-glass);
   overflow: hidden;
+}
+/* 页签嵌入模式：外壳由 PreferenceTabsCard 提供 */
+.ai-card.is-embedded {
+  background: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
 }
 .ai-card__title {
   position: relative;
@@ -203,6 +214,9 @@ onMounted(load)
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+.ai-card.is-embedded .ai-card__body {
+  padding: 0;
 }
 .ai-card__metrics {
   display: flex;

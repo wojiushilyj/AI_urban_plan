@@ -28,7 +28,7 @@ function onExport(format: ExportFormat): void {
   try {
     doExport(format, props.context)
     const label = format === 'pdf' ? 'PDF 报告' : format === 'excel' ? 'Excel 表格' : '图纸图片'
-    ElMessage.success(`${label}导出已触发（样例数据）`)
+    ElMessage.success(`${label}导出已触发`)
   } catch (e) {
     ElMessage.error(`导出失败：${e instanceof Error ? e.message : String(e)}`)
   }

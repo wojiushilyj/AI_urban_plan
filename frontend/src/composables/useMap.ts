@@ -80,7 +80,7 @@ const LINGUI_OUTLINE: FeatureCollection<Polygon, { name: string }> = {
           [110.05, 25.50], [109.98, 25.22], [110.02, 24.98],
         ]],
       },
-      properties: { name: '临桂区（示意边界 · 样例数据）' },
+      properties: { name: '临桂区（示意边界）' },
     },
   ],
 }

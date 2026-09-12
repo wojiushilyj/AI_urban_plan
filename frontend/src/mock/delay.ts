@@ -1,6 +1,6 @@
 /**
- * Mock 工具：延迟 + 进度推流。
- * 所有 mock 数据仅用于演示，UI 界面统一标注「样例数据 SAMPLE」。
+ * 计算进度推流工具：延迟 + 分阶段进度回调。
+ * 用于前端本地引擎的界面进度动画（后端接口为一次性返回）。
  */
 
 export function sleep(ms: number): Promise<void> {

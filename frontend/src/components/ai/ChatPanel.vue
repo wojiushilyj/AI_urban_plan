@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * AI 需求交互主面板（模块 2）：门类选择 + 选址偏好 + AI 聊天卡片 + 开始选址。
+ * AI 需求交互主面板（模块 2）：门类选择 + 选址偏好（含 AI 偏好学习页签）+ AI 聊天卡片 + 开始选址。
  */
 import { nextTick, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -11,8 +11,7 @@ import { useResultStore } from '../../store/result'
 import { useMapStore } from '../../store/map'
 import ChatMessage from './ChatMessage.vue'
 import ScenarioSwitcher from '../scenario/ScenarioSwitcher.vue'
-import PreferenceCard from '../config/PreferenceCard.vue'
-import AiModelCard from './AiModelCard.vue'
+import PreferenceTabsCard from '../config/PreferenceTabsCard.vue'
 import CardContainer from '../common/CardContainer.vue'
 
 const ai = useAiStore()
@@ -70,8 +69,7 @@ async function startSelection(): Promise<void> {
       <CardContainer title="门类选择">
         <ScenarioSwitcher class="chat-panel__scenario" />
       </CardContainer>
-      <PreferenceCard />
-      <AiModelCard />
+      <PreferenceTabsCard />
     </div>
 
     <div class="chat-panel__chat">
@@ -104,8 +102,22 @@ async function startSelection(): Promise<void> {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
 }
+/*
+ * 配置区（门类选择 + 选址偏好 + AI 偏好学习）：
+ * 内容高度随偏好项和 AI 卡片展开而增长，必须自身可滚动，
+ * 否则会把下方聊天卡片挤到只剩几十像素。
+ * - max-height 直接为聊天卡片预留 ~380px（含外边距，对齐 AI 卡片变高之前的尺寸），
+ *   不依赖 flex 收缩
+ * - overflow-y + min-height:0 让超出部分在本区内部滚动
+ */
 .chat-panel__config {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: calc(100% - 380px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: var(--gap-sm);
@@ -118,6 +130,8 @@ async function startSelection(): Promise<void> {
 /* AI 聊天卡片：消息展示 + 输入框同一卡片 */
 .chat-panel__chat {
   flex: 1;
+  /* 兜底高度：输入框自身约 180px，保证消息区至少还能露出两三条 */
+  min-height: 300px;
   display: flex;
   flex-direction: column;
   margin: var(--gap-md);

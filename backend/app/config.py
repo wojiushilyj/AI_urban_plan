@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     DATA_RAW: Path = ROOT_DIR / "data" / "raw"
     DATA_PROCESSED: Path = ROOT_DIR / "data" / "processed"
 
+    # ---- 前端构建产物（单端口部署时由本服务托管；不存在则只跑 API）----
+    FRONTEND_DIST: Path = ROOT_DIR / "frontend" / "dist"
+
     # ---- 服务 ----
     API_HOST: str = "127.0.0.1"
     API_PORT: int = 8000
@@ -34,6 +37,22 @@ class Settings(BaseSettings):
     LLM_BASE_URL: str = ""
     LLM_API_KEY: str = ""
     LLM_MODEL: str = ""
+
+    # 输出预算（max_tokens）。⚠️ 这是**上限**而非预分配，设大不产生额外费用，
+    # 只在模型真的写满时才按量计费；设小则会被截断。
+    #
+    # 为什么必须放宽：`deepseek-flash` / `deepseek-reasoner` 属**推理模型**，
+    # 会先生成一段不返回给用户的思考内容（reasoning），同样消耗输出预算。
+    # 实测同一模型在不同输入下思考长度差异极大——简单需求约 2s 直接出结果，
+    # 而模糊输入（如「我们那个厂子想搬过来，看看有没有合适的地」）思考会明显变长，
+    # 预算 300 时思考占满、正文为空，最终静默回退规则版。2048 经实测覆盖该波动。
+    #
+    # 若换为 `deepseek-chat` 这类非推理模型，实际消耗仅十几 token，上限高低无影响。
+    LLM_MAX_TOKENS_PARSE: int = 2048   # 需求解析：输出为短 JSON，余量给思考
+    LLM_MAX_TOKENS_CHAT: int = 2048    # 对话：输出 3~5 句，余量给思考
+    # 调用超时（秒）。实测正常 2~6s，推理模型在弱网下可能更久；
+    # 放宽是为了「宁可多等一会也不要失败回退」，失败回退对演示的观感更差。
+    LLM_TIMEOUT_S: float = 60.0
 
     # ---- 选址引擎默认参数 ----
     DEFAULT_GRID_SIZE_M: int = 30       # 分析网格边长（米）

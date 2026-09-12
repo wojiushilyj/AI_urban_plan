@@ -7,7 +7,7 @@ declare module '*.vue' {
 }
 
 interface ImportMetaEnv {
-  /** mock 开关：true=前端样例数据模式 */
+  /** 引擎开关：true=前端本地引擎（不依赖后端）；false=调用 FastAPI 后端 */
   readonly VITE_USE_MOCK: string
   /** 天地图 Key，空则降级 OSM */
   readonly VITE_TIANDITU_KEY: string

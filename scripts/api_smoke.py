@@ -50,6 +50,8 @@ def main() -> int:
     items = r.json()["items"]
     check("GET /api/scenarios 200", r.status_code == 200)
     check("门类数 = 10", len(items) == 10, f"实际 {len(items)}")
+    # 合法门类集合：用于校验「未知需求」场景下返回值是否仍在契约内
+    valid_ids = {it.get("id") for it in items}
     r = c.get("/api/scenarios/G")
     d = r.json()
     check("GET /api/scenarios/G 200", r.status_code == 200)
@@ -88,7 +90,17 @@ def main() -> int:
     r = c.post("/api/ai/parse", json={"text": "为污水处理厂选址"})
     check("识别门类 N", r.json()["scenarioId"] == "N")
     r = c.post("/api/ai/parse", json={"text": "随便选址"})
-    check("未命中时回落默认门类", r.json()["scenarioId"] == "B")
+    # 未提及任何行业信息时的回落行为分两种模式，断言须随之区分：
+    #   · 规则版（未配 LLM）→ 严格回落默认门类 B，这是确定性基线契约；
+    #   · LLM 版（LLM_ENABLED=true）→ 语义判断由模型接管，不保证等于 B
+    #     （实测会给出 C1/C2 等「默认按制造业解析」的结论），
+    #     故此处只校验「仍返回合法门类」这一上层契约不被破坏。
+    unknown_sid = r.json()["scenarioId"]
+    if h.get("llm_enabled"):
+        check("未命中时仍返回合法门类（LLM 接管语义判断）",
+              unknown_sid in valid_ids, f"实际 {unknown_sid}")
+    else:
+        check("未命中时回落默认门类 B", unknown_sid == "B", f"实际 {unknown_sid}")
     r = c.post("/api/ai/chat", json={"history": [], "text": "权重怎么设置"})
     check("POST /api/ai/chat 200", r.status_code == 200 and len(r.text) > 10)
 

@@ -95,7 +95,7 @@ export const useMapStore = defineStore('map', () => {
     { id: 'candidate-labels', name: '地块序号', groupId: 'result', visible: true, kind: 'candidates' },
   ])
 
-  /** 研究区：固定为桂林市临桂区（简化边界，样例数据） */
+  /** 研究区：固定为桂林市临桂区（矩形范围，用于限定分析边界） */
   const LINGUI_AOI: Polygon = {
     type: 'Polygon',
     coordinates: [[[110.0, 25.0], [110.42, 25.0], [110.42, 25.5], [110.0, 25.5], [110.0, 25.0]]],

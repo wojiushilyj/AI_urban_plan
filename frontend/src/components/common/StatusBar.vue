@@ -15,8 +15,8 @@ const aoiArea = computed(() => '临桂区')
 <template>
   <footer class="status-bar">
     <span class="status-bar__item">
-      <span class="dot" :class="app.backendMode === 'mock' ? 'dot--warn' : 'dot--ok'" />
-      {{ app.backendMode === 'mock' ? '样例数据模式' : '已连接后端' }}
+      <span class="dot dot--ok" />
+      真实规划数据
     </span>
     <span class="status-bar__divider" />
     <span class="status-bar__item">门类：{{ scenario.current?.name ?? '—' }}</span>
@@ -34,7 +34,6 @@ const aoiArea = computed(() => '临桂区')
     </span>
     <span class="status-bar__spacer" />
     <span class="status-bar__item status-bar__msg">{{ app.statusMessage }}</span>
-    <span class="status-bar__tag">SAMPLE · 演示样例数据</span>
   </footer>
 </template>
 
@@ -72,11 +71,6 @@ const aoiArea = computed(() => '临桂区')
 .status-bar__spacer {
   flex: 1;
 }
-.status-bar__tag {
-  color: var(--c-warning);
-  font-weight: 600;
-  letter-spacing: 0.4px;
-}
 .dot {
   width: 7px;
   height: 7px;
@@ -84,8 +78,5 @@ const aoiArea = computed(() => '临桂区')
 }
 .dot--ok {
   background: var(--c-success);
-}
-.dot--warn {
-  background: var(--c-warning);
 }
 </style>

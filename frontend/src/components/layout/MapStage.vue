@@ -15,6 +15,8 @@ import { useAppStore } from '../../store/app'
 import { useScenarioStore } from '../../store/scenario'
 import { geometryMeasureText, geometryTypeLabel } from '../../utils/geo'
 import { fmtScore } from '../../utils/format'
+import { detectWebgl } from '../../utils/webgl'
+import { OSM_PROBE_TILE, probeRasterTile } from '../../utils/tile'
 import MapToolbar from '../map/MapToolbar.vue'
 import BasemapControl from '../map/BasemapControl.vue'
 import LayerManager from '../map/LayerManager.vue'
@@ -25,6 +27,11 @@ const container = ref<HTMLDivElement>()
 const mapStore = useMapStore()
 const appStore = useAppStore()
 const scenario = useScenarioStore()
+
+/** WebGL 探测结果（MapLibre GL 强依赖 WebGL，不可用则整块地图无法渲染） */
+const webgl = detectWebgl()
+/** 非空即表示地图无法渲染，模板改为显示说明面板而不是一片白 */
+const mapIssue = ref('')
 
 /** 选中地块（用于右侧贴边卡片） */
 const selectedParcel = computed(
@@ -101,13 +108,53 @@ async function reapplyAll(): Promise<void> {
 
 onMounted(() => {
   if (!container.value) return
-  const m = init(container.value, mapStore.basemap)
-  mapStore.mapInstance = m
-  m.on('load', () => {
-    layers.renderGeoLayers(mapStore.layers)
-    // 要素查询的点击监听挂在 map 上（不绑定具体图层），底图切换重建 style 后依然有效
-    m.on('click', onMapClick)
-  })
+  if (!webgl.supported) {
+    mapIssue.value = '浏览器未提供 WebGL 上下文'
+    // eslint-disable-next-line no-console
+    console.warn('[MapStage] WebGL 不可用，地图无法渲染。请检查 edge://gpu 或 chrome://gpu 的 WebGL 状态。')
+    return
+  }
+  try {
+    const m = init(container.value, mapStore.basemap)
+    mapStore.mapInstance = m
+    m.on('load', () => {
+      layers.renderGeoLayers(mapStore.layers)
+      // 要素查询的点击监听挂在 map 上（不绑定具体图层），底图切换重建 style 后依然有效
+      m.on('click', onMapClick)
+    })
+
+    // 瓦片加载失败兜底：天地图 Key 失效/欠额，或被网络/WAF 拦截时切到 OSM。
+    // 实测：天地图会按发起请求的 IP 做风控（云机房 IP 返回 418「疑似攻击行为」），
+    // 而 OSM 在境外出口可达、国内直连超时 —— 两边都可能不通，故切换前先探测 OSM。
+    let tileErrors = 0
+    let downgraded = false
+
+    async function fallbackToOsm(): Promise<void> {
+      const reachable = await probeRasterTile(OSM_PROBE_TILE)
+      if (reachable) {
+        ElMessage.warning('天地图瓦片被当前网络拦截，已自动切换为 OSM 底图')
+        mapStore.basemap = 'osm'
+      } else {
+        ElMessage.error('底图不可用：天地图被当前网络拦截，OSM 也不可达。请更换网络，或从能正常访问天地图的电脑打开本系统')
+      }
+    }
+
+    m.on('error', (ev) => {
+      const sourceId = (ev as { sourceId?: string }).sourceId
+      if (sourceId !== 'tdt' && sourceId !== 'tdtAnno') return
+      tileErrors += 1
+      if (tileErrors === 1) {
+        // eslint-disable-next-line no-console
+        console.warn('[MapStage] 天地图瓦片请求失败：', (ev as { error?: Error }).error)
+      }
+      if (tileErrors >= 4 && !downgraded && mapStore.basemap !== 'osm') {
+        downgraded = true
+        void fallbackToOsm()
+      }
+    })
+  } catch (e) {
+    mapIssue.value = e instanceof Error ? e.message : String(e)
+  }
 })
 
 // 底图切换（模块 5.1）
@@ -214,7 +261,7 @@ watch(
 <template>
   <div ref="container" class="map-stage">
     <MapToolbar class="map-stage__toolbar" />
-    <div class="map-stage__tr">
+    <div class="map-stage__tl">
       <BasemapControl />
       <LayerManager />
     </div>
@@ -225,6 +272,29 @@ watch(
       @close="mapStore.selectedRank = null"
     />
     <FeatureInfoCard :pick="mapStore.featurePick" @close="mapStore.featurePick = null" />
+
+    <div v-if="mapIssue" class="map-stage__fallback">
+      <div class="map-stage__fallback-box">
+        <h3>当前环境无法渲染地图</h3>
+        <p class="map-stage__fallback-reason">
+          检测结果：{{ mapIssue }}<span v-if="webgl.renderer">（渲染器：{{ webgl.renderer }}）</span>
+        </p>
+        <p>
+          本系统地图基于 MapLibre GL，需要浏览器支持 <b>WebGL</b>。无独立显卡的云服务器 / 虚拟机，
+          以及关闭了硬件加速的浏览器，会禁用 WebGL，症状正是整块地图全白。
+        </p>
+        <p class="map-stage__fallback-title">可以这样解决：</p>
+        <ol>
+          <li>在浏览器地址栏打开 <code>edge://gpu</code>（Chrome 为 <code>chrome://gpu</code>），查看 WebGL 一行是否为 Disabled。</li>
+          <li>给浏览器加启动参数 <code>--enable-unsafe-swiftshader</code>，用软件方式渲染 WebGL。</li>
+          <li>换用 Firefox 打开本页试试。</li>
+          <li>或者最简单：<b>从另一台电脑</b>访问本服务的公网地址。</li>
+        </ol>
+        <p class="map-stage__fallback-note">
+          AI 需求解析、选址计算、报告导出等功能不依赖 WebGL，在上方各面板中可正常使用。
+        </p>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -244,20 +314,77 @@ watch(
   transform: translateX(-50%);
   z-index: 10;
 }
-.map-stage__tr {
+/* 底图选择 + 图层选择：地图左上角（用户要求移到最左侧） */
+.map-stage__tl {
   position: absolute;
   top: var(--gap-md);
-  right: var(--gap-md);
+  left: var(--gap-md);
   display: flex;
   flex-direction: column;
   gap: var(--gap-sm);
   z-index: 10;
-  align-items: flex-end;
+  align-items: flex-start;
 }
 .map-stage__parcel-card {
   position: absolute;
   bottom: var(--gap-md);
   right: var(--gap-md);
   z-index: 20;
+}
+/* WebGL 不可用时的说明面板（覆盖地图区域，避免一片白无从判断） */
+.map-stage__fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-base);
+}
+.map-stage__fallback-box {
+  max-width: 560px;
+  padding: 20px 24px;
+  border: 1px solid var(--border-lighter);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-md);
+  color: var(--text-regular);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.map-stage__fallback-box h3 {
+  margin: 0 0 10px;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+}
+.map-stage__fallback-box p {
+  margin: 0 0 8px;
+}
+.map-stage__fallback-reason {
+  color: var(--c-warning);
+}
+.map-stage__fallback-title {
+  margin-top: 12px !important;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.map-stage__fallback-box ol {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+.map-stage__fallback-box li {
+  margin-bottom: 4px;
+}
+.map-stage__fallback-box code {
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  font-family: Consolas, Monaco, 'Courier New', monospace;
+  font-size: 12px;
+}
+.map-stage__fallback-note {
+  margin-top: 12px !important;
+  color: var(--text-secondary);
 }
 </style>

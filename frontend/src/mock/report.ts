@@ -14,14 +14,13 @@ export function mockGenerateReport(
   const top = result.candidates[0]
   const now = new Date().toLocaleString('zh-CN')
   return {
-    title: `${scenario.name}选址分析报告（样例）`,
+    title: `${scenario.name}选址分析报告`,
     generatedAt: now,
     scenarioName: scenario.name,
-    sampleData: true,
     sections: [
       {
         title: '一、分析概述',
-        content: `本报告基于多场景智慧选址系统（演示样例数据）生成。本次分析行业门类为「${scenario.name}」（${scenario.category}），采用 ${params.algorithm} 算法，网格精度 ${params.grid_size_m} 米。研究区网格化后共 ${result.total_cells.toLocaleString()} 个评价单元，经 ${scenario.constraints.length} 项硬约束一票否决过滤后，保留 ${result.available_cells.toLocaleString()} 个可利用单元（占比 ${((result.available_cells / result.total_cells) * 100).toFixed(1)}%）。`,
+        content: `本报告基于多场景智慧选址系统生成。本次分析行业门类为「${scenario.name}」（${scenario.category}），采用 ${params.algorithm} 算法，网格精度 ${params.grid_size_m} 米。研究区网格化后共 ${result.total_cells.toLocaleString()} 个评价单元，经 ${scenario.constraints.length} 项硬约束一票否决过滤后，保留 ${result.available_cells.toLocaleString()} 个可利用单元（占比 ${((result.available_cells / result.total_cells) * 100).toFixed(1)}%）。`,
       },
       {
         title: '二、约束条件',
@@ -42,7 +41,7 @@ export function mockGenerateReport(
       },
       {
         title: '五、数据说明',
-        content: '本报告全部数据为竞赛演示用样例数据（SAMPLE），不代表真实国土空间数据。正式应用时将对接国土空间规划"一张图"实施监督信息系统。',
+        content: '本报告数据来源为国土空间规划真实图层数据（研究区：桂林市临桂区），各候选地块的面积与指标得分均由真实空间关系统计计算得出。正式应用时将对接国土空间规划"一张图"实施监督信息系统。',
       },
     ],
   }

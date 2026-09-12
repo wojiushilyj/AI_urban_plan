@@ -2,8 +2,11 @@
 /**
  * 选址偏好设置卡片：5 个统一维度 × 三档（在意/一般/不在意）。
  * 权重由三档偏好自动归一化计算（store/config.ts）。
+ * 传 embedded 时去掉卡片外壳与标题，供 PreferenceTabsCard 页签嵌入。
  */
 import { useConfigStore, FACTOR_DEFS, PREFERENCE_LEVELS, type PreferenceLevel } from '../../store/config'
+
+defineProps<{ embedded?: boolean }>()
 
 const config = useConfigStore()
 
@@ -13,8 +16,8 @@ function onLevel(id: string, v: string | number | boolean | undefined): void {
 </script>
 
 <template>
-  <div class="preference-card">
-    <div class="preference-card__title">
+  <div class="preference-card" :class="{ 'is-embedded': embedded }">
+    <div v-if="!embedded" class="preference-card__title">
       <span>选址偏好设置</span>
       <span class="preference-card__title-note">（影响权重）</span>
     </div>
@@ -44,6 +47,15 @@ function onLevel(id: string, v: string | number | boolean | undefined): void {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-glass);
   overflow: hidden;
+}
+/* 页签嵌入模式：外壳由 PreferenceTabsCard 提供 */
+.preference-card.is-embedded {
+  background: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
 }
 .preference-card__title {
   position: relative;
@@ -75,13 +87,22 @@ function onLevel(id: string, v: string | number | boolean | undefined): void {
   padding: var(--gap-sm) var(--gap-lg) var(--gap-md);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 14px;
+}
+.preference-card.is-embedded .preference-card__body {
+  padding: 0;
 }
 .preference-card__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--gap-md);
+  padding: 3px 2px;
+  border-radius: var(--radius-sm);
+  transition: background var(--duration-base) var(--ease-in-out);
+}
+.preference-card__row:hover {
+  background: var(--bg-hover);
 }
 .preference-card__label {
   font-size: 14px;
@@ -89,7 +110,7 @@ function onLevel(id: string, v: string | number | boolean | undefined): void {
   white-space: nowrap;
 }
 .preference-card__row :deep(.el-radio-button__inner) {
-  padding: 5px 10px;
+  padding: 6px 14px;
   font-size: 13px;
 }
 </style>

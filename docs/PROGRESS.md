@@ -415,3 +415,336 @@
 3. 启动盖章流程 ← **最迟 09-12 必须启动**
 
 ---
+
+## 2026-09-12（VPS 部署 · 单端口全栈）
+
+**做了什么**
+- 部署形态定为 **单端口全栈**：FastAPI 一个进程同时托管前端页面与 API，对外端口 **8080**
+  （VPS 放行区间 8000–10000 内）。前端 axios `baseURL='/'` 走同源相对路径，
+  因此**不需要 Nginx、不需要配 CORS**。
+- `backend/main.py`
+  - 新增 `SpaStaticFiles`（未命中路径 404 时回落 `index.html`）；
+  - 在**所有路由之后**才把 `frontend/dist` 挂到根路径 `/`；挂载顺序为
+    `/data/layers` → `/`，否则根路径会吞掉 `/api`、`/docs`、`/health`；
+  - 新增 `__main__` 入口：`python main.py` 即按 `.env` 启动（传入 app 对象，避免模块二次导入）。
+- `backend/app/config.py`：新增 `FRONTEND_DIST = ROOT_DIR/frontend/dist`。
+- `backend/.env`（新增，不进 Git）：`API_HOST=0.0.0.0`、`API_PORT=8080`；`.env.example` 同步说明。
+- `frontend/.env.vps`（新增）：`VITE_USE_MOCK=false`；`package.json` 新增 `npm run build:vps`
+  （`vite build --mode vps`）。**本地 `npm run build` 仍产出 mock 版，两者互不影响。**
+  `.gitignore` 放行 `!.env.vps`、忽略 `deploy/`。
+- 组装 `deploy/vps/AI_urban_plan/`：backend 源码 + `data/processed` 真实数据
+  （layers.gpkg 12.8 MB / 18 图层）+ `frontend/dist` + 5 个 .bat + `DEPLOY.md`；
+  另附 `_fallback/mock-demo/` 纯前端应急版（后端装不上时兜底）；产出
+  `deploy/vps/AI_urban_plan_vps_8080.zip` 便于远程桌面整包复制。
+
+**本地实测（本轮最重要的事）**
+- 本地建 `backend/.venv` 实装依赖，实际解析到 **starlette 1.6.0 / pandas 3.0.5 / numpy 2.5.3 /
+  geopandas 1.1.4**（均为较新大版本，存在兼容风险）—— **实测全部兼容**，无导入或运行期错误。
+  这条务必记住：`requirements.txt` 只写下限，装出来的大版本已跨过 starlette 1.0 与 pandas 3.0。
+- `python main.py` 单端口启动成功，监听 `0.0.0.0:8080`。
+- 专项验证（全部通过）：`/` 200 html、`/docs` 200、`/health`（`gpkg_exists=true`、`layers=18`、
+  `EPSG:4525`）、`/data/layers/*.geojson` 200 且 UTF-8 中文正常、`/api/layers` 200、
+  SPA 兜底 `/not-exist-page` 返回 index.html。
+- `scripts/api_smoke.py http://127.0.0.1:8080`：**96 项通过 / 0 失败**
+  （候选池 145 → 可行 107 → Top-5；三种算法；AUC 0.693；三种 weight_mode；蒙特卡洛 200 次）。
+
+**技术决策与理由**
+- 选单端口而非双端口：前端所有请求本来就是相对路径，同源托管零改动、零跨域、只需开一个端口；
+  双端口反而要改前端地址重新构建，并多一个进程要维护。
+- 用独立 `--mode vps` 而不是直接改 `.env`：本地离线演示（mock）与服务器真实演示（真后端）
+  两种构建产物必须能共存，否则改一个坏一个。
+- 打包脚本用纯 ASCII 文件名与内容（`1-install.bat` 等）：Windows 批处理对非 ASCII 编码极敏感，
+  中文说明一律放 `DEPLOY.md`。
+
+**当前状态**
+- 部署包已就绪且本地全链路验证通过，等待用户在 VPS 上执行
+  `1-install.bat` → `3-firewall.bat` → `2-start.bat`，再访问 `http://<VPS公网IP>:8080/`。
+- ⚠️ 本轮改动**尚未 commit**（后端 2 个文件 + 前端 3 个配置 + .gitignore + 本文件）。
+
+**下一步（09-13）**
+1. VPS 实际部署 + `/health` 复核（`gpkg_exists` 必须为 true、`layers` 必须为 18）。
+2. 逐层确认数据时点（18 个图层，`data/README.md` 仍有「时点待补充」表）。
+3. 演示脚本与视频分镜定稿；启动盖章流程。
+
+**已知问题 / 提醒**
+- 前端 JS 单文件 3.0 MB（gzip 957 KB），未做代码分割，首屏偏慢；不影响演示，可后续优化。
+- `VITE_TIANDITU_KEY` 为空 → 底图回退 OSM 公共瓦片；若要天地图，填 Key 后须重新
+  `npm run build:vps` 并替换 `dist`。
+- 服务以 `0.0.0.0:8080` 对公网开放且**无任何鉴权**，演示结束应停服或收敛安全组来源 IP。
+
+---
+
+## 2026-09-12（DeepSeek + 天地图 Key 接入）
+
+**背景**：用户要求把天地图 API 与 DeepSeek API 接进系统。排查后发现一个**必须如实说明的缺口**：
+后端 `LLM_ENABLED / LLM_BASE_URL / LLM_API_KEY / LLM_MODEL` 四项此前**只是占位配置**，
+全项目只在 `config.py`（定义）、`main.py`（health 回显）、`ai_parse.py`（拼一句提示文案）出现，
+**没有任何发起大模型请求的代码** —— 填了 Key 也不会真的调用。
+
+**做了什么**
+
+1. **新增 `backend/app/services/llm.py`** —— DeepSeek / 任意 OpenAI 兼容接口客户端
+   - `llm_available()` 判定四项配置是否齐全；`chat()` 返回文本、`chat_json()` 解析 JSON 对象
+   - 超时 30 s、重试 1 次；**任何异常（网络/鉴权/限流/格式）一律吞掉返回 None**，不抛异常
+   - `chat_json` 容错两轮提取：剥离 ` ```json ` 围栏、从夹带解释文字中正则抠出 JSON
+   - 日志只截取错误体前 200 字符，避免凭据进日志
+2. **改造 `backend/app/services/ai_parse.py`**（规则版为基线 + LLM 增强）
+   - `parse_requirement`：关键词识别门类与正则抽取面积为**基线**；LLM 可修正门类、补齐面积、润色结论
+     - 输出全部经校验：`scenarioId` 必须在 `SCENARIOS` 内、面积必须在 `MIN_HA~MAX_HA` 内，非法即忽略
+     - **确定性换算优先**：规则已解析出面积时不采信模型数值（防模型算错单位）
+     - 返回体新增 `llmEnhanced` 字段，前端可据此提示"本次结论由大模型增强"
+   - `chat_reply`：配置 Key 时由 LLM 接管，未配置或失败时回退原确定性 FAQ
+     - 系统提示词注入项目真实口径（研究区、18 图层、1 公顷=15 亩、EPSG:4525、约束规则、
+       5 维权重 5/3/1、三种算法、±50% 规模容差），并明确要求"不确定就说不确定，不得臆造数字"
+3. **测试脚本 `scripts/llm_smoke.py`（新增，24 项断言）**
+   - 规则模式结果完整性、连不通时静默回退、模型输出非法值被拒、JSON 容错、真实调用（配了 Key 才跑）
+4. **Key 存放位置（两处，安全设计）**
+   - 天地图 tk → `frontend/.env.vps.local`（**新建，已被 .gitignore 忽略**）；填后须重新 `npm run build:vps`
+   - DeepSeek Key → `backend/.env`（不入 Git）；填后重启服务即可，无需重构前端
+5. **部署文档 `DEPLOY.md` 新增第七节**「配置天地图与大模型 Key」，含两处位置对照表、
+   生效方式、验证命令、容错行为说明与代理故障排查；FAQ 增加 3 条相关条目
+
+**⚠️ 发现的安全隐患**
+
+`.gitignore` 为让 `VITE_USE_MOCK=false` 随仓库传递而放行了 `!.env.vps`，
+**该文件是被 Git 追踪的** —— 若把天地图 Key 填进 `.env.vps`，下次 commit 就会推到 GitHub。
+已实测确认：`git check-ignore frontend/.env.vps` 返回 1（不被忽略）、
+`frontend/.env.vps.local` 返回 0（被忽略）。因此 Key 一律填 `.env.vps.local`。
+
+**本地实测（全部通过）**
+
+- `vite loadEnv` 优先级实测：`mode=vps` 读到 `VITE_TIANDITU_KEY`（来自 `.env.vps.local`，
+  成功覆盖 `.env.vps` 的空值）且 `USE_MOCK=false`；`mode=production` 仍是 `USE_MOCK=true`、Key 为空
+  → 证明**两种构建产物互不干扰**、`.local` 覆盖确实生效
+- `scripts/llm_smoke.py`：**24 项通过 / 0 失败**
+  - 关键项：连不通时 `parse_requirement` 返回完整结果且 `llmEnhanced=false`；越界门类 `ZZZ`
+    与面积 `999999` 均被忽略；规则已算出 33.33 公顷时不被模型覆盖
+- `scripts/api_smoke.py http://127.0.0.1:8080`：**96 项通过 / 0 失败**（新增 `llmEnhanced`
+  字段未破坏任何原有断言，零回归）
+- 部署包已同步新代码并重新打包
+
+**技术决策与理由**
+
+- **规则版为基线、LLM 只做增强**：竞赛现场网络不可控，必须保证"断网也能完整演示"。
+  这是 README 铁律「无 LLM Key 时仍可跑通全流程」的落地，而非事后补丁。
+- **不采信模型的确定性换算**：面积单位换算是纯算术，正则比模型可靠；模型的优势在语义理解
+  （"建个机房"→ 信息技术服务业），两者分工，各取所长。
+- **`llmEnhanced` 如实回传**：让前端与评委都能看出"这一步到底有没有真用上大模型"，
+  避免把规则版结果包装成 AI 结论。
+- **`httpx` 未加 `trust_env=False`**：保持库的默认行为（尊重 `HTTP_PROXY`）。
+  本次测试中请求被本机代理截走并返回 502，正好验证了失败回退路径；该坑已写入
+  `llm.py` 文档与 `DEPLOY.md` FAQ（服务器残留代理变量时清空即可）。
+
+**当前状态**
+- 两处 Key 位置已备好（内容留空待用户填写），代码与文档就绪，本地全链路验证通过。
+- ⚠️ 本轮改动**仍未 commit**（新增 `llm.py`、`scripts/llm_smoke.py`、`frontend/.env.vps.local`；
+  修改 `ai_parse.py`、`backend/.env(.example)`、`frontend/.env.example`、`DEPLOY.md`、本文件）。
+
+**下一步（09-13）**
+1. 用户填入两个 Key；天地图 Key 填完后需重新 `npm run build:vps` 并替换 VPS 上的 `dist`。
+2. VPS 实际部署 + `/health` 复核（`gpkg_exists=true`、`layers=18`、填了 Key 后 `llm_enabled=true`）。
+3. 逐层确认数据时点；演示脚本与分镜定稿；启动盖章流程。
+
+---
+
+## 2026-09-12（晚 · 真实 Key 实测与推理模型预算修复）
+
+**背景**：用户填入两个真实 Key 后准备部署到 VPS。部署前做实测验证，
+发现一个**只在推理模型下才暴露的静默失效问题**，另确认天地图 Key 的权限类型。
+
+### 关键发现 1 · `deepseek-flash` 是推理模型，旧输出预算卡在临界值
+
+`LLM_MODEL` 实际填的是 `deepseek-flash`（非 `deepseek-chat`）。两者行为差异极大：
+
+| 模型 | 类型 | 同一解析任务 |
+|---|---|---|
+| `deepseek-chat` | 对话模型 | 仅耗 13 token，零 reasoning，秒回 |
+| `deepseek-flash` | **推理模型** | 先生成不返回给用户的思考内容，同样占用 `max_tokens` |
+
+旧代码两处预算为 `max_tokens=300 / 700`。实测 6 个解析输入：
+**5 个成功、1 个失败** —— 输入「我们那个厂子想搬到桂林临桂这边来，看看有没有合适的地」
+时思考占满 300 token、正文为空，连续重试 3 次皆空，最终静默回退规则版。耗时 5.9s 却毫无 AI 效果。
+
+**这是最难发现的一类故障**：不报错、不中断、接口照常返回 200，只有 `llmEnhanced=false`
+能看出端倪，而它恰恰是 AI 能力是否真正生效的唯一信号。
+
+**修复**（`app/config.py` 新增三项配置，默认值即适配推理模型）：
+
+```python
+LLM_MAX_TOKENS_PARSE: int = 2048   # 需求解析
+LLM_MAX_TOKENS_CHAT: int = 2048    # 对话
+LLM_TIMEOUT_S: float = 60.0        # 原 30s
+```
+
+- `ai_parse.py` 两处调用改用 `settings.LLM_MAX_TOKENS_*` 与 `settings.LLM_TIMEOUT_S`
+- `llm.py` 的 `TIMEOUT_S` 改为读配置
+- **关键认知**：`max_tokens` 是**上限**而非预分配，**设大不额外计费**，只在模型真写满时按量付费；设小则会被截断。故放宽无成本代价。
+- 修复后重测：**6/6 解析全部 LLM 生效**（含此前失败的输入，3.7s 通过），4/4 对话成功，耗时 1.8~4.8s
+- 附带质量提升：输入「这里适合做什么类型的工业项目？」原先被规则误判为制造业 C2，
+  现由模型正确回答"缺少区位、用地规模与产业意向，无法判定，请补充"
+
+### 关键发现 2 · 天地图 Key 属「浏览器端」类型，服务端直连必然 403
+
+服务端 `curl` 取瓦片返回：
+
+```
+403 {"msg":"权限类型错误","resolve":"Key权限类型为:浏览器端，请使用浏览器访问！","code":301012}
+```
+
+**这不是 Key 无效**。补上 `Referer` 头模拟浏览器后：`http=200  type=image/jpg  bytes=23987` ✅
+
+前端由浏览器直连瓦片服务、天然带 `Referer`，因此**不受影响，无需任何改动**。
+此坑已补入 `DEPLOY.md` FAQ，避免后续用服务端方式验证时误判为 Key 失效。
+
+### 关键发现 3 · 测试断言未覆盖「LLM 开启」模式
+
+`api_smoke.py` 原断言：输入「随便选址」须回落默认门类 `B`（规则版确定性契约）。
+LLM 开启后语义判断由模型接管，实测该输入会返回 `C2` 或 `C1`（且**每次不同**），断言必然失败。
+
+判定为**测试未覆盖新配置**，非产品缺陷。修法：读取 `/health` 的 `llm_enabled` 分流断言 ——
+LLM 关闭时严格校验 `== "B"`（基线契约），开启时只校验"返回值仍在合法门类集合内"（上层契约）。
+两种模式下断言都保持有效，不放松对契约的保护。
+
+### 部署包更新
+
+- 路径示例由 `D:\` 改为用户实际使用的 `C:\AI_urban_plan`；已核实**所有 `.bat` 均用 `%~dp0`
+  引用自身目录、无硬编码盘符**，故放任意盘符均可运行
+- 修复 `DEPLOY.md` 中重复的「## 八、」章节编号（应急兜底为八、安全合规为九）
+- 按用户选择，**含真实 Key 的 `backend/.env` 已打进 zip**（`deploy/` 已被 gitignore，不会上传 GitHub）
+- 清理 `dist/assets` 中 robocopy 遗留的旧 JS（`index-DHvSZ3RS.js` 2.9MB），改用 `/MIR` 镜像同步
+
+### 验证结果（全部通过）
+
+| 测试 | 结果 |
+|---|---|
+| `api_smoke.py`（LLM 开启） | **96 项通过 / 0 失败** |
+| `llm_smoke.py` | **27 项通过 / 0 失败**（含真实调用 3 项） |
+| 端到端解析 | **6/6 LLM 生效** |
+| 端到端对话 | **4/4 成功**，拒答无关话题、数据来源表述准确 |
+| 天地图 Key | 浏览器 UA 取瓦片 `200 image/png 18739 bytes`（当时误记为「靠 Referer」，见下节更正） |
+| 部署包 | 47.78 MB / 77 文件，ZIP 12.69 MB |
+
+### 本轮改动（仍未 commit）
+
+- 修改：`backend/app/config.py`、`app/services/llm.py`、`app/services/ai_parse.py`、
+  `scripts/api_smoke.py`、`backend/.env(.example)`、`deploy/vps/**`
+- 已重新构建 `frontend/dist`（含天地图 Key）并重新打包 zip
+
+---
+
+## 2026-09-12（晚·二 · VPS 浏览器整块地图全白）
+
+### 现象
+
+用户在 **VPS 本机浏览器**打开 `http://127.0.0.1:8080/`，地图区域**整块全白**（连业务图层与兜底虚线边界都没有）；
+但用**自己电脑**打开 `http://150.109.17.70:8080/` 天地图底图正常。
+
+### 排查过程（逐项实测，排除了三个假设）
+
+| 假设 | 实测 | 结论 |
+|---|---|---|
+| 天地图 Key 有 Referer 白名单，`127.0.0.1` 被拒 | **天地图根本不校验 Referer**：带浏览器 UA 时，`127.0.0.1` / `localhost` / `150.109.17.70` / 不带 Referer **全部 200 图片**（18739B 逐字节一致）；而 python UA 时**无论 Referer 是什么都 403 `code 301012`** | ❌ 排除 |
+| VPS 在境外（新加坡），天地图封境外 IP | 经香港出口（`155.117.84.83`）取同一瓦片 → **200 图片**，与国内直连结果一致 | ❌ 排除 |
+| VPS 出不了国 / 连不上国内服务 | 远程调 VPS 的 `/api/ai/parse` → **`llmEnhanced=true`**，VPS 真实调通了 `api.deepseek.com` | ❌ 排除 |
+
+⚠️ **重要更正**：上一节把「服务端直连 403」解释为「靠补 Referer 解决」是**错的**。
+天地图「浏览器端」Key 的判定依据是 **User-Agent**，不是 Referer。
+以后排查瓦片 403 先查 UA，别去折腾 Referer 白名单。
+
+补充事实：`150.109.17.70` 归属 **腾讯云新加坡节点（Singapore, SG）**，非香港。
+
+### 根因（⚠️ 本节结论已作废，见文末「晚·三」更正）
+
+~~**WebGL 不可用**。用户确认「整块全白、图层和虚线都没有」——若只是瓦片取不到，MapLibre 仍会渲染自绘图层；
+连 canvas 内容都没有，说明 MapLibre GL 的 WebGL 上下文根本没建立。云服务器无独立显卡，
+Chromium 内核浏览器（Edge / Chrome）会直接禁用 WebGL；RDP 会话中更常见。~~
+
+**该判据不成立**：业务图层默认**全部关闭**、兜底虚线仅 1px，底图空白时看不见属正常现象。
+用户后续实测「**切到 OSM 就能正常显示地图**」⇒ 渲染链路完好，真实原因在**底图瓦片源可达性**。
+
+### 处理
+
+**1. 前端加兜底（`frontend/src`）**
+
+- 新增 `utils/webgl.ts`：`detectWebgl()` 依次尝试 `webgl2` → `webgl` → `experimental-webgl`，
+  返回 `{ supported, version, renderer }`（renderer 取自 `WEBGL_debug_renderer_info`，便于识别 SwiftShader / Basic Render Driver）
+- `components/layout/MapStage.vue`
+  - `onMounted` 先探测 WebGL，不可用则**不再初始化地图**，改为显示说明面板
+    （含 `edge://gpu` 自查、`--enable-unsafe-swiftshader` 启动参数、换 Firefox、改用另一台电脑访问四条指引）
+  - `init()` 包 `try/catch`，MapLibre 初始化异常同样落到说明面板，避免空白无提示
+  - 新增瓦片失败兜底：监听 `map.on('error')`，筛 `sourceId` 为 `tdt` / `tdtAnno` 的错误，
+    累计 ≥4 次则自动把底图降级为 OSM 并 `ElMessage` 提示（防 Key 失效/欠额导致只剩空白底图）
+- 样式沿用项目既有变量（`--bg-panel` / `--border-lighter` / `--text-regular` / `--radius-md` 等）
+
+**2. 部署文档**：`DEPLOY.md` 第五节新增「5.1 整块地图全白（WebGL 不可用）」——
+先教用户区分「瓦片没取到」与「WebGL 不可用」两类白，再给四条解决路径。
+排查表新增一行指向该节。
+
+### 验证
+
+| 项 | 结果 |
+|---|---|
+| `npm run build:vps` | **vue-tsc 0 错误**，vite 18.14s（chunk 3020 kB / gzip 958 kB） |
+| 产物核对 | `enable-unsafe-swiftshader`、`当前环境无法渲染地图`、天地图 Key **均在 JS 中** |
+| 部署包 HTTP 冒烟 | `/` 200、新 JS 200（3029162B）、新 CSS 200、`/data/layers/*` 200、`/api/scenarios` 200，`index.html` 引用与 assets 一致 |
+| 部署包 | `/MIR` 同步后只剩 1 个 JS，**77 文件 / 47.78 MB，ZIP 12.69 MB** |
+
+### 结论与建议
+
+- **推荐演示方式：从自己的电脑访问 `http://150.109.17.70:8080/`**，
+  瓦片请求由本机浏览器发出，与 VPS 显卡、网络都无关，最稳。
+- 若必须在 VPS 本机浏览器演示，用 `--enable-unsafe-swiftshader` 开软件渲染，或换 Firefox。
+- 未用真实浏览器做可视验证（本机无 playwright/puppeteer）——**VPS 上刷新页面即可闭环确认**
+  是否出现说明面板。
+
+### 本轮改动（仍未 commit）
+
+- 新增 `frontend/src/utils/webgl.ts`
+- 修改 `frontend/src/components/layout/MapStage.vue`、`deploy/vps/AI_urban_plan/DEPLOY.md`
+- 重新构建 `frontend/dist` 并重新打包 zip
+
+---
+
+## 2026-09-12（晚·三 · 更正根因：不是 WebGL，是「底图瓦片源可达性」）
+
+### 触发
+
+用户反馈：**VPS 上把底图切到 OSM 就能正常显示地图**。
+
+这一句直接推翻上一节的根因 —— **OSM 与天地图在代码里走完全相同的渲染路径**
+（`composables/useMap.ts` 里两者都是 `type:'raster'` 的 source + `raster` layer，
+同一个 MapLibre 实例、同一个 WebGL canvas），唯一差别是 `sources[*].tiles` 里的 URL。
+OSM 能画出来 ⇒ **WebGL / MapLibre / 页面 JS 全部正常**。
+
+### 本轮实测（补齐上一节缺失的关键数据）
+
+| 探测项 | 结果 |
+|---|---|
+| 天地图瓦片（国内直连，浏览器 UA + 模拟页面 Origin/Referer） | **200 image/png**，响应头带 **`access-control-allow-origin: *`** ⇒ **无 CORS 障碍**、Key 有效、URL 格式正确 |
+| 同上换**非浏览器 UA** | **403 `{"msg":"权限类型错误","code":301012}`**（经境外代理出口同样 403） |
+| 天地图 DNS | `t0/t3.tianditu.gov.cn` → `116.205.76.122` / `116.205.76.86` |
+| **OSM 瓦片（国内直连）** | **`ConnectTimeout`**（`199.96.58.85`，Fastly） |
+| OSM 瓦片（check-host 5 节点 SG/HK/JP/US/DE） | **全部 200**，0.01~0.12s（`151.101.x` / `146.75.x`） |
+| 天地图瓦片（同 5 节点） | SG **418**/4.27s、JP 418、US 418、DE 418、HK **403** —— ⚠️ **不可用于判定地域**（探针不带浏览器 UA，必被拒） |
+| 上一轮"境外出口"的真实身份 | `155.117.84.83` → **美国俄亥俄州辛辛那提**（另一库给"比利时"）⇒ 确属境外，非国内中转 |
+| 同上出口 + 浏览器 UA 取天地图 | **200 image/png** ⇒ **天地图并不封锁境外 IP** |
+
+### 更正与认知
+
+1. **上一节「根因 = WebGL 不可用」作废**；判据（"连图层和虚线都没有"）本身不可靠。
+2. 新判据（不依赖用户主观描述）：**让它切一次备用底图**。
+   - 切了正常 ⇒ 渲染完好，查**瓦片源可达性**（DNS / 出海链路 / UA / Key 权限类型）
+   - 切了仍全白 ⇒ 才查 WebGL
+3. **用 check-host.net 之类多节点探针判断"境外能否访问国内瓦片服务"必然得出假结论** ——
+   它不带浏览器 UA，一律 403/418，看着像地域封锁。要判地域，必须用**能自定义 Header 的境外出口**复测。
+4. ⚠️ **默认底图是 `tianditu-vec`**（`store/map.ts`），页面一打开就走天地图路径；白屏首先怀疑它。
+5. ⚠️ **上一轮加的"瓦片失败自动降级 OSM"只对境外出口的客户端有效**：OSM 国内直连超时，
+   国内演示时降级等于换一种白屏。兜底底图需另选国内可达的源。
+6. 本轮**未改任何代码**，仅更正结论与文档。
+
+### 待确认（下一步）
+
+`t0~t7.tianditu.gov.cn` 从 **VPS 本机浏览器**是否可达 —— 只能在该机器上实测：
+浏览器直接打开瓦片 URL，或 PowerShell **带浏览器 UA** 请求。据此再定修复方案。
+
+

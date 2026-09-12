@@ -54,7 +54,7 @@ const exportContext = computed(() => ({
 
 <template>
   <div class="report-generator">
-    <CardContainer title="选址报告" :subtitle="'基于当前结果自动生成，含样例数据标注'">
+    <CardContainer title="选址报告" subtitle="基于当前结果自动生成">
       <div class="report-generator__toolbar">
         <el-button type="primary" :disabled="!result.response" @click="generate">
           {{ report ? '重新生成报告' : '生成报告' }}
