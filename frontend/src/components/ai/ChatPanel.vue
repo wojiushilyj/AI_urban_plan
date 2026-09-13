@@ -49,7 +49,7 @@ async function applyParse(text: string): Promise<void> {
   map.selectedRank = null
 }
 
-/** 发送：仅做需求解析与权重回显（对话区可见分析过程） */
+/** 回车发送：仅做需求解析与权重回显（对话区可见分析过程），不触发选址计算 */
 async function onSend(): Promise<void> {
   const text = input.value.trim()
   if (!text || ai.thinking) return
@@ -57,7 +57,7 @@ async function onSend(): Promise<void> {
   await applyParse(text)
 }
 
-/** 开始选址：先解析未发送的需求，再执行选址计算 */
+/** 开始选址（主行动）：先把输入框中的需求发送给选址助手解析（对话区落库显示），再执行选址计算 */
 async function startSelection(): Promise<void> {
   if (!scenario.detail) return
   const text = input.value.trim()
@@ -106,22 +106,14 @@ async function startSelection(): Promise<void> {
       </div>
 
       <div class="chat-input">
+        <!-- 发送按钮已按用户要求移除：回车 = 发送需求给助手解析；「开始选址」= 发送需求并执行选址分析 -->
         <input
           v-model="input"
           class="chat-input__field"
           type="text"
-          placeholder="描述选址需求…"
+          placeholder="描述选址需求，回车发送…"
           @keydown.enter="onSend"
         />
-        <button
-          class="chat-input__send"
-          type="button"
-          title="发送"
-          :disabled="ai.thinking"
-          @click="onSend"
-        >
-          <AppIcon name="send" :size="26" />
-        </button>
       </div>
     </div>
 
@@ -270,22 +262,6 @@ async function startSelection(): Promise<void> {
 }
 .chat-input__field::placeholder {
   color: var(--placeholder);
-}
-.chat-input__send {
-  width: 26px;
-  height: 26px;
-  flex: 0 0 26px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  transition: 0.16s;
-}
-.chat-input__send:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 /* ============ 主行动按钮（原型 .cta） ============ */

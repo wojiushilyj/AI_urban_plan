@@ -777,3 +777,25 @@ OSM 能画出来 ⇒ **WebGL / MapLibre / 页面 JS 全部正常**。
 - 8080 现由项目 backend 目录 main.py 提供（0.0.0.0:8080 单端口全栈），此前「部署包进程数据目录不一致」已消除。
 - VPS（117.72.210.60:8000）上轮探测 502，后端疑似未运行，待远端排查。
 - 09-14 起冻结功能，只修 bug 与文档。
+
+## 2026-09-13（晚）聊天交互合并 + Python 环境重建 + VPS 恢复
+
+### 本轮完成
+
+1. **聊天框去发送按钮（ChatPanel.vue）**：输入框右侧 26px 发送钮删除，回车 = 仅解析需求；
+   「开始选址」(cta) = 先把输入框需求发给选址助手解析（对话区落库显示）再执行选址计算。
+   构建产物 index-D-WGcsHE.js，8080 实测引用新包。
+2. **Python 环境重建（本机）**：系统 Python312 被卸载致 backend/.venv 失效（No Python at 报错根因）；
+   按隔离规则用受管 Python 3.13.14 重建 envs/default 包环境（fastapi 0.141.1/geopandas 1.1.4 等与实测版本一致），
+   本机 8080 已用该环境恢复。
+3. **VPS（150.109.17.70）恢复**：VPS 旧 Python312 同样被卸载 → 用户在其 PyManager Python 3.14.6 上重建 venv；
+   部署包 1-install.bat 加 venv 自检（底座失效自动删除重建）；另发现 VPS 磁盘存在多份部署副本，
+   旧副本坏 venv 曾误导排查，已提醒只认 C:\AI_urban_plan 一份。
+4. **VPS 服务上线验证**（21:00 外部实测）：/health 200（18 层、gpkg 在、llm_enabled=true）、
+   /api/ai/model available=True；新前端 dist（index.html + assets）已由用户拷至 VPS 并硬刷新生效。
+   流程口径：**VPS 只认编译产物 dist，源码 .vue 传 VPS 无效；改前端 = 本机构建 → 拷 dist**。
+
+### 遗留 / 注意
+
+- VPS venv 现基于 Python 3.14.6（PyManager），依赖轮子实测可用；若未来 pip 装不上新包，`py install 3.13` 兜底。
+- 09-14 起冻结功能，只修 bug 与文档。
