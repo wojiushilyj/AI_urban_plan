@@ -395,7 +395,7 @@ export async function buildReportDocx(src: ReportDocxSource): Promise<Blob> {
         : `建设规模：未指定目标用地规模，按最小地块面积 ${config.minAreaHa} 公顷筛选。`
     ),
     bullet(
-      `研究范围：桂林市临桂区；网格精度 ${result.grid_size_m} 米；评价单元 ${result.total_cells.toLocaleString()} 个，一票否决过滤后可利用 ${result.available_cells.toLocaleString()} 个（占比 ${((result.available_cells / result.total_cells) * 100).toFixed(1)}%）。`
+      `研究范围：桂林市临桂区；候选池为控规工业用地图斑 ${result.total_cells.toLocaleString()} 个，经硬约束一票否决与面积条件筛选后保留 ${result.available_cells.toLocaleString()} 个（占比 ${((result.available_cells / result.total_cells) * 100).toFixed(1)}%）。`
     ),
     bullet(`研究方法：多因子 GIS 空间评价 + ${config.algorithmName} 多准则排序，输出 Top-${config.topN} 候选方案。`)
   )
@@ -404,7 +404,7 @@ export async function buildReportDocx(src: ReportDocxSource): Promise<Blob> {
   children.push(
     bullet('数据依据：研究区国土空间真实空间数据，包括控规工业用地图斑、生态保护红线、永久基本农田、城市蓝线、城市绿线、城市黄线、道路路网、现状建筑分布、产业园区边界等图层（CGCS2000 坐标系存储，EPSG:4525 投影量测）；'),
     bullet('方法依据：AHP 层次分析法、熵权法、TOPSIS 多准则决策、留一法贡献分解、蒙特卡洛权重扰动检验；'),
-    bullet('工具依据：国土AI智慧选址系统 GIS 空间分析引擎（本次网格精度 ' + `${config.gridSize} 米）。`)
+    bullet('工具依据：国土AI智慧选址系统 GIS 空间分析引擎（CGCS2000 坐标系存储，EPSG:4525 投影量测）。')
   )
 
   children.push(section('1.3 主要研究结论'))
@@ -449,9 +449,9 @@ export async function buildReportDocx(src: ReportDocxSource): Promise<Blob> {
         ? `建设规模：目标用地 ${config.targetAreaHa} 公顷${
             config.areaRange ? `，允许浮动区间 ${config.areaRange.lo}–${config.areaRange.hi} 公顷` : ''
           }；最小地块面积 ${config.minAreaHa} 公顷。`
-        : `建设规模：未指定目标用地规模，按最小地块面积 ${config.minAreaHa} 公顷筛选；网格精度 ${config.gridSize} 米。`
+        : `建设规模：未指定目标用地规模，按最小地块面积 ${config.minAreaHa} 公顷筛选。`
     ),
-    bullet(`业务目标：在研究区内对 ${result.available_cells.toLocaleString()} 个可利用评价单元综合评价，输出 Top-${config.topN} 候选方案并排序，降低用地与物流综合成本。`)
+    bullet(`业务目标：在研究区内对 ${result.available_cells.toLocaleString()} 个可行候选地块综合评价，输出 Top-${config.topN} 候选方案并排序，降低用地与物流综合成本。`)
   )
 
   children.push(section('2.2 选址偏好'))
@@ -472,7 +472,7 @@ export async function buildReportDocx(src: ReportDocxSource): Promise<Blob> {
       '结合项目产业属性与硬性约束，本次选址遵循以下原则：1）合规底线优先原则：严格遵循国土空间管控规则，首先规避一票否决类禁建区域，所有候选地块必须满足规划、生态、地质等底线要求；' +
         '2）综合效益最优原则：以多因子加权综合评价统筹交通、产业、配套与成本；' +
         `3）方案稳健原则：对候选地块开展留一法贡献分解与蒙特卡洛权重扰动检验（本次 ${result.robustness?.samples ?? 200} 次扰动），保障排序结论稳健。` +
-        `本次分析共启用 ${scenario.constraints.length} 项硬约束，全部候选地块均已通过校验。`
+        `本次分析对具备图层数据支撑的硬约束执行一票否决，候选地块均已通过该部分校验；缺少对应图层数据的约束未纳入计算，已在结果说明中逐条列明。`
     )
   )
 
@@ -528,17 +528,21 @@ export async function buildReportDocx(src: ReportDocxSource): Promise<Blob> {
 
   children.push(section('3.3 一票否决约束清单'))
   children.push(
-    box('采用 GIS 空间掩模处理，地块只要命中下表任一约束即直接淘汰，不进入综合评价环节。')
+    box(
+      '下表为本门类「模板定义」的约束全集，采用 GIS 空间掩模处理：' +
+        '凡具备图层数据支撑的约束，地块命中即直接淘汰，不进入综合评价环节。' +
+        '缺少对应图层数据的约束本次未纳入计算，实际参与情况见本文「计算结果说明」。'
+    )
   )
   children.push(spacer())
   children.push(
-    tableCaption('表 3-3  一票否决约束清单'),
+    tableCaption('表 3-3  一票否决约束清单（模板定义）'),
     dataTable(
       ['约束名称', '缓冲距离', '约束性质'],
       scenario.constraints.map((c) => [
         c.name,
         c.buffer_m ? `${c.buffer_m} 米` : '—',
-        c.required ? '强制（不可关闭）' : '本次启用',
+        c.required ? '强制（不可关闭）' : '非必需（默认不启用，按需开启）',
       ]),
       [46, 24, 30]
     )
@@ -589,7 +593,7 @@ export async function buildReportDocx(src: ReportDocxSource): Promise<Blob> {
       `3）${config.algorithmName}：对通过一票否决的候选地块构建决策矩阵（指标归一化），${config.algorithmName === 'TOPSIS' ? '计算到正、负理想解的距离得到贴近度 Ci 并排序' : config.algorithmName === 'K-Means 聚类' ? '按因子特征自动分组，识别同类地块片区（0 优先开发类 / 1 条件适合类 / 2 储备备用类）' : '拟合历史选址偏好，预测地块适宜度'}。`
     ),
     bullet(
-      `计算参数：网格精度 ${result.grid_size_m} 米；评价单元 ${result.total_cells.toLocaleString()} 个，一票否决过滤后可利用 ${result.available_cells.toLocaleString()} 个（占比 ${((result.available_cells / result.total_cells) * 100).toFixed(1)}%）。`
+      `计算参数：候选池控规工业用地图斑 ${result.total_cells.toLocaleString()} 个，经硬约束一票否决与面积条件筛选后保留 ${result.available_cells.toLocaleString()} 个（占比 ${((result.available_cells / result.total_cells) * 100).toFixed(1)}%）。`
     )
   )
 
@@ -730,7 +734,7 @@ export async function buildReportDocx(src: ReportDocxSource): Promise<Blob> {
     children.push(subsection('（1）选址结论'))
     children.push(
       p(
-        `综合 AHP-GIS 加权评价、改进重心法运输测算与${config.algorithmName}排序，优先推荐 ${top.code ?? `第 ${top.rank} 名候选地块`}（${centroidText(top)}，${top.area_ha.toFixed(2)} 公顷）作为本项目选址场址。该地块满足全部硬性约束，市场、交通、配套与成本条件综合最优，综合得分 ${top.score.toFixed(4)}。${result.message}`
+        `综合 AHP-GIS 加权评价、改进重心法运输测算与${config.algorithmName}排序，优先推荐 ${top.code ?? `第 ${top.rank} 名候选地块`}（${centroidText(top)}，${top.area_ha.toFixed(2)} 公顷）作为本项目选址场址。该地块已通过本期可用的硬约束校验，市场、交通、配套与成本条件综合最优，综合得分 ${top.score.toFixed(4)}。${result.message}`
       )
     )
     children.push(subsection('（2）落地实施建议'))
