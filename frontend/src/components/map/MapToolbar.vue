@@ -2,18 +2,20 @@
 /**
  * 地图工具条（模块 5.4）：缩放、要素查询、测距、测面积、出图。
  * 查询与测量均为独立模式（mapStore.toolMode）。
+ * 形态对齐设计稿 .map-toolbar：左上角 48px 竖向白卡，内部 36px 圆角按钮，选中品牌蓝底。
  */
 import { ElMessage } from 'element-plus'
 import { useMapStore } from '../../store/map'
 import { doExport } from '../../api/export'
+import AppIcon from '../common/AppIcon.vue'
 
 const mapStore = useMapStore()
 
+/** 工具模式项（对应原型 .tool 系列） */
 const tools = [
-  // icon 为空表示该按钮使用内联 SVG（见模板），其余用 emoji
-  { mode: 'identify', icon: '', label: '要素信息查询（单击图层要素弹出属性卡片）' },
-  { mode: 'measure-dist', icon: '📏', label: '测量距离（点击加点，双击结束）' },
-  { mode: 'measure-area', icon: '📐', label: '测量面积（至少 3 点，双击结束）' },
+  { mode: 'identify', icon: 'pointer', label: '要素信息查询（单击图层要素弹出属性卡片）' },
+  { mode: 'measure-dist', icon: 'ruler', label: '测量距离（点击加点，双击结束）' },
+  { mode: 'measure-area', icon: 'polygon', label: '测量面积（至少 3 点，双击结束）' },
 ] as const
 
 /** 各工具模式激活时的操作提示 */
@@ -42,77 +44,73 @@ function snapshot(): void {
 
 <template>
   <div class="map-toolbar">
-    <el-tooltip content="放大" placement="bottom">
-      <el-button size="small" @click="zoom(1)">＋</el-button>
-    </el-tooltip>
-    <el-tooltip content="缩小" placement="bottom">
-      <el-button size="small" @click="zoom(-1)">－</el-button>
-    </el-tooltip>
-    <span class="map-toolbar__divider" />
-    <el-tooltip v-for="t in tools" :key="t.mode" :content="t.label" placement="bottom">
-      <el-button
-        size="small"
-        :type="mapStore.toolMode === t.mode ? 'primary' : 'default'"
+    <!-- 选择 / 要素查询 -->
+    <el-tooltip
+      v-for="t in tools"
+      :key="t.mode"
+      :content="t.label"
+      placement="right"
+    >
+      <button
+        type="button"
+        class="tool"
+        :class="{ 'is-active': mapStore.toolMode === t.mode }"
         @click="onTool(t.mode)"
       >
-        <!-- 要素查询用鼠标指针图形（SVG 描边随主题色，比 emoji 更贴合"单击拾取"语义） -->
-        <svg
-          v-if="t.mode === 'identify'"
-          class="map-toolbar__icon"
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-        >
-          <path d="M4 4l7.07 17 2.51-7.39L21 11.07 4 4z" fill="currentColor" />
-        </svg>
-        <template v-else>{{ t.icon }}</template>
-      </el-button>
+        <AppIcon :name="t.icon" :size="24" />
+      </button>
     </el-tooltip>
-    <span class="map-toolbar__divider" />
-    <el-tooltip content="导出图纸图片" placement="bottom">
-      <el-button size="small" @click="snapshot">📷</el-button>
+
+    <el-tooltip content="放大" placement="right">
+      <button type="button" class="tool" @click="zoom(1)">
+        <AppIcon name="zoom-in" :size="24" />
+      </button>
+    </el-tooltip>
+    <el-tooltip content="缩小" placement="right">
+      <button type="button" class="tool" @click="zoom(-1)">
+        <AppIcon name="zoom-out" :size="24" />
+      </button>
+    </el-tooltip>
+
+    <el-tooltip content="导出图纸图片" placement="right">
+      <button type="button" class="tool" @click="snapshot">
+        <AppIcon name="camera" :size="22" />
+      </button>
     </el-tooltip>
   </div>
 </template>
 
 <style scoped>
+/* 竖向工具卡（原型 .map-toolbar） */
 .map-toolbar {
-  display: inline-flex;
-  align-items: center;
+  width: 48px;
+  padding: 6px;
+  border-radius: var(--radius-card);
+  background: #fff;
+  border: 1px solid var(--border-lighter);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
   gap: 4px;
-  padding: 5px 8px;
-  background: var(--glass-bg);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  border: 1px solid var(--glass-border-soft);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-glass);
 }
-.map-toolbar :deep(.el-button) {
+.tool {
+  width: 36px;
+  height: 36px;
+  border: 0;
   background: transparent;
-  border-color: transparent;
-  color: var(--text-regular);
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: 0.16s;
+  color: var(--ink-2);
+  padding: 0;
 }
-.map-toolbar :deep(.el-button:hover),
-.map-toolbar :deep(.el-button:focus) {
-  background: var(--bg-hover);
-  border-color: var(--glass-border-soft);
-  color: var(--brand-dark-2);
+.tool:hover {
+  background: var(--bg-subtle);
 }
-.map-toolbar :deep(.el-button--primary) {
+.tool.is-active {
   background: var(--brand);
-  border-color: var(--brand);
   color: #fff;
-}
-.map-toolbar__icon {
-  display: block;
-  width: 14px;
-  height: 14px;
-  fill: currentColor;
-}
-.map-toolbar__divider {
-  width: 1px;
-  height: 16px;
-  background: var(--glass-border-soft);
-  margin: 0 3px;
 }
 </style>

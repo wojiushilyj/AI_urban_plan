@@ -48,7 +48,7 @@ export function useMeasure(getMap: () => MlMap | null) {
         id: 'measure-line',
         type: 'line',
         source: 'measure-src',
-        paint: { 'line-color': '#E8743B', 'line-width': 2, 'line-dasharray': [3, 2] },
+        paint: { 'line-color': '#F59E0B', 'line-width': 2, 'line-dasharray': [3, 2] },
       })
     }
 

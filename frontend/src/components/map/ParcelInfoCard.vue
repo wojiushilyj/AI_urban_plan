@@ -7,6 +7,7 @@
 import { computed } from 'vue'
 import type { CandidateParcel } from '../../types/selection'
 import { fmtScore } from '../../utils/format'
+import AppIcon from '../common/AppIcon.vue'
 
 const props = defineProps<{
   parcel: CandidateParcel | null
@@ -49,6 +50,13 @@ const weaknessName = computed(() =>
     ? (props.factorNames[props.parcel.top_weakness] ?? props.parcel.top_weakness)
     : ''
 )
+
+/** 聚类类型（仅 K-Means 算法时后端返回）：0 优先开发类 / 1 条件适合类 / 2 储备备用类 */
+const CLUSTER_NAMES = ['优先开发类', '条件适合类', '储备备用类']
+const clusterName = computed(() => {
+  const c = props.parcel?.cluster
+  return c === null || c === undefined ? '' : (CLUSTER_NAMES[c] ?? `类 ${c}`)
+})
 </script>
 
 <template>
@@ -56,7 +64,7 @@ const weaknessName = computed(() =>
     <aside v-if="parcel" class="parcel-info-card">
       <header class="parcel-info-card__head">
         <span class="parcel-info-card__rank">候选地块 · No.{{ parcel.rank }}</span>
-        <el-button class="parcel-info-card__close" text @click="emit('close')">✕</el-button>
+        <el-button class="parcel-info-card__close" text @click="emit('close')"><AppIcon name="close" :size="12" /></el-button>
       </header>
 
       <div class="parcel-info-card__score">
@@ -76,6 +84,10 @@ const weaknessName = computed(() =>
         <div class="parcel-info-card__meta-row">
           <span class="parcel-info-card__meta-label">面积</span>
           <span class="parcel-info-card__meta-val">{{ parcel.area_ha }} 公顷</span>
+        </div>
+        <div v-if="clusterName" class="parcel-info-card__meta-row">
+          <span class="parcel-info-card__meta-label">聚类类型</span>
+          <span class="parcel-info-card__meta-val">{{ clusterName }}</span>
         </div>
         <div class="parcel-info-card__meta-row">
           <span class="parcel-info-card__meta-label">结论</span>
@@ -176,7 +188,7 @@ const weaknessName = computed(() =>
   font-size: 36px;
   font-weight: 800;
   line-height: 1;
-  color: #3B82F6;
+  color: var(--brand);
   letter-spacing: -1px;
 }
 .parcel-info-card__score-unit {
@@ -297,16 +309,16 @@ const weaknessName = computed(() =>
   border-radius: 3px;
   transition: width var(--duration-base) var(--ease-out);
 }
-.parcel-info-card__contrib-bar.is-pos { background: #3B82F6; }
-.parcel-info-card__contrib-bar.is-neg { background: #E5484D; }
+.parcel-info-card__contrib-bar.is-pos { background: var(--brand); }
+.parcel-info-card__contrib-bar.is-neg { background: var(--c-danger); }
 .parcel-info-card__contrib-val {
   width: 48px;
   text-align: right;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
-.parcel-info-card__contrib-val.is-pos { color: #2563EB; }
-.parcel-info-card__contrib-val.is-neg { color: #C42B2F; }
+.parcel-info-card__contrib-val.is-pos { color: var(--brand-dark-2); }
+.parcel-info-card__contrib-val.is-neg { color: #D62B31; }
 
 /* 右侧滑入过渡 */
 .parcel-card-enter-active,

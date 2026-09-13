@@ -107,7 +107,7 @@ export function useMap() {
         id: 'lingui-outline-line',
         type: 'line',
         source: 'lingui-outline',
-        paint: { 'line-color': '#8A94A6', 'line-width': 1, 'line-dasharray': [4, 3] },
+        paint: { 'line-color': '#9CA3AF', 'line-width': 1, 'line-dasharray': [4, 3] },
       })
     })
     map.value = m

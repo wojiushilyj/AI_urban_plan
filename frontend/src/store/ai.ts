@@ -50,7 +50,7 @@ export const useAiStore = defineStore('ai', () => {
     {
       id: 'welcome',
       role: 'assistant',
-      content: '您好，我是选址助手。请先在上方选择行业门类、在「选址偏好」中设置各维度的在意程度，也可用一句话描述需求（如"为装备制造项目选址"），我会给出分析过程与权重数值。',
+      content: '您好，我是选址助手。请先选择行业门类并设置偏好维度，也可用一句话描述需求。',
       time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
     },
   ])

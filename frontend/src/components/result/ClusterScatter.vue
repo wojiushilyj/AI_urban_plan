@@ -48,7 +48,7 @@ function render(): void {
       type: 'scatter',
       data,
       symbolSize: (v: number[]) => 10 + (v[2] / 40) * 12,
-      itemStyle: { color: ['#3B82F6', '#F59E0B', '#8A94A6'][i], opacity: 0.85 },
+      itemStyle: { color: ['#3B82F6', '#F59E0B', '#9CA3AF'][i], opacity: 0.85 },
       label: { show: true, formatter: (p: { data: { name: string } }) => p.data.name, fontSize: 11, position: 'top' },
     })),
   })

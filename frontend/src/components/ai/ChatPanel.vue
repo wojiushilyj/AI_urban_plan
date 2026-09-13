@@ -1,6 +1,8 @@
 <script setup lang="ts">
 /**
- * AI 需求交互主面板（模块 2）：门类选择 + 选址偏好（含 AI 偏好学习页签）+ AI 聊天卡片 + 开始选址。
+ * AI 需求交互主面板（模块 2）：门类选择 + 选址偏好（含 AI 偏好学习页签）+ 选址助手对话卡 + 开始选址。
+ * 形态对齐设计稿：左栏为扁平列表（无卡片外壳），对话卡为「头部 / 消息体 / 输入行」三段结构，
+ * 「开始选址」抽为独立的 48px 胶囊主行动按钮（原型 .cta）。
  */
 import { nextTick, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -12,7 +14,7 @@ import { useMapStore } from '../../store/map'
 import ChatMessage from './ChatMessage.vue'
 import ScenarioSwitcher from '../scenario/ScenarioSwitcher.vue'
 import PreferenceTabsCard from '../config/PreferenceTabsCard.vue'
-import CardContainer from '../common/CardContainer.vue'
+import AppIcon from '../common/AppIcon.vue'
 
 const ai = useAiStore()
 const scenario = useScenarioStore()
@@ -31,28 +33,38 @@ watch(
   }
 )
 
+/** 把一段需求文本交给 AI 解析，并落库为门类 / 约束 / 用地规模 */
+async function applyParse(text: string): Promise<void> {
+  const pr = await ai.parse(text)
+  if (!pr) return
+  const detail = await scenario.switchScenario(pr.scenarioId)
+  config.applyScenario(detail)
+  const enabledSet = new Set(pr.constraints)
+  for (const c of detail.constraints) {
+    if (!c.required) config.constraints[c.id].enabled = enabledSet.has(c.id)
+  }
+  // 需求中提到占地面积 → 记为用地规模目标（未提到则清空，不做面积匹配）
+  config.targetAreaHa = pr.targetAreaHa ?? null
+  result.reset()
+  map.selectedRank = null
+}
+
+/** 发送：仅做需求解析与权重回显（对话区可见分析过程） */
+async function onSend(): Promise<void> {
+  const text = input.value.trim()
+  if (!text || ai.thinking) return
+  input.value = ''
+  await applyParse(text)
+}
+
+/** 开始选址：先解析未发送的需求，再执行选址计算 */
 async function startSelection(): Promise<void> {
   if (!scenario.detail) return
-  // 1) 需求文本作为用户消息显示 + 调用 AI 分析（输出分析过程，识别门类与约束）
   const text = input.value.trim()
   if (text && !ai.thinking) {
     input.value = ''
-    const pr = await ai.parse(text)
-    // 2) 自动应用 AI 识别出的门类、约束与用地规模
-    if (pr) {
-      const detail = await scenario.switchScenario(pr.scenarioId)
-      config.applyScenario(detail)
-      const enabledSet = new Set(pr.constraints)
-      for (const c of detail.constraints) {
-        if (!c.required) config.constraints[c.id].enabled = enabledSet.has(c.id)
-      }
-      // 需求中提到占地面积 → 记为用地规模目标（未提到则清空，不做面积匹配）
-      config.targetAreaHa = pr.targetAreaHa ?? null
-      result.reset()
-      map.selectedRank = null
-    }
+    await applyParse(text)
   }
-  // 3) 权重校验后执行选址计算
   if (Math.abs(config.weightSum - 1) >= 0.01) {
     ElMessage.warning('权重之和不为 1，请重新选择行业门类')
     return
@@ -65,35 +77,64 @@ async function startSelection(): Promise<void> {
 
 <template>
   <div class="chat-panel">
+    <!-- 配置区：门类选择 + 偏好 / AI 学习 -->
     <div class="chat-panel__config">
-      <CardContainer title="门类选择">
-        <ScenarioSwitcher class="chat-panel__scenario" />
-      </CardContainer>
+      <div class="chat-panel__field">
+        <div class="field-label">门类选择</div>
+        <ScenarioSwitcher />
+      </div>
       <PreferenceTabsCard />
     </div>
 
-    <div class="chat-panel__chat">
-      <div ref="messagesEl" class="chat-panel__messages">
+    <!-- 选址助手对话卡（原型 .chat）：弹性填充配置区之下的剩余空间，不留大块空白 -->
+    <div class="chat-card">
+      <div class="chat-head">
+        <div class="chat-head__left">
+          <AppIcon name="assistant" :size="28" />
+          <span class="chat-head__name">选址助手</span>
+          <span class="chat-head__badge">AI</span>
+        </div>
+        <div class="chat-head__online"><i class="dot-on" />在线</div>
+      </div>
+
+      <div ref="messagesEl" class="chat-body">
         <ChatMessage v-for="m in ai.messages" :key="m.id" :msg="m" />
         <div v-if="ai.thinking" class="chat-panel__thinking">
           <span class="dot" /><span class="dot" /><span class="dot" /> 正在解析…
         </div>
+        <div class="chat-hint">例：临桂区找 20 公顷连片工业用地。</div>
       </div>
 
-      <div class="chat-panel__input">
-        <el-input
+      <div class="chat-input">
+        <input
           v-model="input"
-          type="textarea"
-          :rows="5"
-          resize="none"
-          placeholder="描述选址需求，例如：在临桂区为装备制造项目寻找连片用地，占地面积约 20 公顷，交通便利、产业配套好…"
-          @keydown.enter.exact.prevent="startSelection"
+          class="chat-input__field"
+          type="text"
+          placeholder="描述选址需求…"
+          @keydown.enter="onSend"
         />
-        <div class="chat-panel__actions">
-          <el-button type="primary" size="large" class="chat-panel__start" :loading="result.running || ai.thinking" @click="startSelection">▶ 开始选址</el-button>
-        </div>
+        <button
+          class="chat-input__send"
+          type="button"
+          title="发送"
+          :disabled="ai.thinking"
+          @click="onSend"
+        >
+          <AppIcon name="send" :size="26" />
+        </button>
       </div>
     </div>
+
+    <!-- 主行动按钮（原型 .cta） -->
+    <button
+      class="cta"
+      type="button"
+      :disabled="result.running || ai.thinking"
+      @click="startSelection"
+    >
+      <AppIcon name="play" :size="16" />
+      <span>{{ result.running ? '选址计算中…' : '开始选址' }}</span>
+    </button>
   </div>
 </template>
 
@@ -105,74 +146,189 @@ async function startSelection(): Promise<void> {
   min-height: 0;
 }
 /*
- * 配置区（门类选择 + 选址偏好 + AI 偏好学习）：
- * 内容高度随偏好项和 AI 卡片展开而增长，必须自身可滚动，
- * 否则会把下方聊天卡片挤到只剩几十像素。
- * - max-height 直接为聊天卡片预留 ~380px（含外边距，对齐 AI 卡片变高之前的尺寸），
- *   不依赖 flex 收缩
- * - overflow-y + min-height:0 让超出部分在本区内部滚动
+ * 配置区（门类选择 + 偏好 / AI 学习）：
+ * 可收缩 + 内部滚动，矮屏上优先压缩本区，保证对话卡与 CTA 不被挤没。
  */
 .chat-panel__config {
   flex: 0 1 auto;
   min-height: 0;
-  max-height: calc(100% - 380px);
   overflow-y: auto;
   overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
-  gap: var(--gap-sm);
-  padding: var(--gap-md);
-  border-bottom: 1px solid var(--border-lighter);
+  gap: 14px;
+  padding: var(--panel-pad-left);
 }
-.chat-panel__config :deep(.el-select) {
-  width: 100% !important;
-}
-/* AI 聊天卡片：消息展示 + 输入框同一卡片 */
-.chat-panel__chat {
-  flex: 1;
-  /* 兜底高度：输入框自身约 180px，保证消息区至少还能露出两三条 */
-  min-height: 300px;
+.chat-panel__field {
   display: flex;
   flex-direction: column;
-  margin: var(--gap-md);
-  background: var(--bg-panel);
+  gap: 10px;
+}
+.field-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* ============ 对话卡（原型 .chat） ============ */
+/* 弹性填充配置区之下的剩余空间（基准 0：高度只取决于剩余空间，与消息条数无关），
+   「开始选址」稳定贴底、进度消息追加时上方卡片高度零变动 */
+.chat-card {
+  flex: 1 1 0;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  margin: 0 var(--panel-pad-left) 12px;
+  background: #fff;
   border: 1px solid var(--border-lighter);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-card);
   overflow: hidden;
 }
-.chat-panel__messages {
+.chat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-subtle);
+  flex: none;
+}
+.chat-head__left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.chat-head__name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.chat-head__badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--brand);
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  line-height: 1.35;
+  flex: none;
+}
+.chat-head__online {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--c-success);
+  flex: none;
+}
+.dot-on {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c-success);
+  flex: 0 0 6px;
+}
+
+.chat-body {
   flex: 1;
   overflow-y: auto;
-  padding: var(--gap-md);
-}
-.chat-panel__input {
-  padding: var(--gap-md);
-  border-top: 1px solid var(--border-lighter);
-}
-/* 输入框：占位符 11px，输入文字 12px */
-.chat-panel__input :deep(.el-textarea__inner) {
-  font-size: 12px;
-  line-height: 1.6;
-}
-.chat-panel__input :deep(.el-textarea__inner::placeholder) {
-  font-size: 11px;
-}
-.chat-panel__actions {
+  padding: 10px;
   display: flex;
-  margin-top: 8px;
+  flex-direction: column;
+  gap: 6px;
 }
-.chat-panel__start {
-  width: 100%;
+/* 需求示例提示（原型 .hint：白底描边，与灰底气泡区分） */
+.chat-hint {
+  background: #fff;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 8px;
+  font-size: 11px;
+  line-height: 17px;
+  color: var(--muted);
+}
+
+.chat-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 10px;
+  border-top: 1px solid var(--border-lighter);
+  flex: none;
+}
+.chat-input__field {
   flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--ink-2);
 }
+.chat-input__field::placeholder {
+  color: var(--placeholder);
+}
+.chat-input__send {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: 0.16s;
+}
+.chat-input__send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============ 主行动按钮（原型 .cta） ============ */
+.cta {
+  flex: none;
+  height: 48px;
+  margin: 0 var(--panel-pad-left) var(--panel-pad-left);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--brand);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.28);
+  transition: 0.18s;
+}
+.cta:hover:not(:disabled) {
+  background: var(--brand-dark-2);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.34);
+}
+.cta:active:not(:disabled) {
+  transform: translateY(0);
+}
+.cta:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 .chat-panel__thinking {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 14px;
+  font-size: 12px;
   color: var(--text-secondary);
-  padding: 6px 12px;
+  padding: 6px 10px;
 }
 .chat-panel__thinking .dot {
   width: 6px;
@@ -181,12 +337,8 @@ async function startSelection(): Promise<void> {
   background: var(--brand-light-5);
   animation: blink 1.2s infinite ease-in-out;
 }
-.chat-panel__thinking .dot:nth-child(2) {
-  animation-delay: 0.2s;
-}
-.chat-panel__thinking .dot:nth-child(3) {
-  animation-delay: 0.4s;
-}
+.chat-panel__thinking .dot:nth-child(2) { animation-delay: 0.2s; }
+.chat-panel__thinking .dot:nth-child(3) { animation-delay: 0.4s; }
 @keyframes blink {
   0%, 80%, 100% { opacity: 0.25; }
   40% { opacity: 1; }

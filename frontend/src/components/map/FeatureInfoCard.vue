@@ -11,6 +11,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import type { FeaturePick } from '../../store/map'
 import { placeCard } from '../../utils/overlay'
 import { toFieldRows } from '../../utils/featureProps'
+import AppIcon from '../common/AppIcon.vue'
 
 const props = defineProps<{ pick: FeaturePick | null }>()
 const emit = defineEmits<{ close: [] }>()
@@ -56,7 +57,7 @@ watch(() => props.pick, place, { immediate: true })
     >
       <header class="feature-info-card__head">
         <span class="feature-info-card__title">{{ pick.layerName }}</span>
-        <el-button class="feature-info-card__close" text @click="emit('close')">✕</el-button>
+        <el-button class="feature-info-card__close" text @click="emit('close')"><AppIcon name="close" :size="12" /></el-button>
       </header>
 
       <div class="feature-info-card__meta">

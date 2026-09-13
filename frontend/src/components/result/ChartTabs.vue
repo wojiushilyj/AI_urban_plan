@@ -35,7 +35,6 @@ const tabs = [
 
 <style scoped>
 .chart-tabs {
-  padding: var(--gap-md);
   display: flex;
   flex-direction: column;
   gap: var(--gap-md);

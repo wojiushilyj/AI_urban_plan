@@ -1,12 +1,17 @@
 /* ============================================================
- * 业务设计变量（v2 简洁蓝白科技风）
- * - 主色：纯蓝 #3B82F6（替代原青蓝 #1C7D8C）
- * - 背景：浅色 #F9FAFB（去除光晕渐变）
- * - 风格：简洁商务蓝白（替代玻璃拟态）
- * - 兼容：保留所有旧变量名（映射到新值），保证现有组件正常渲染
+ * 业务设计变量（v4 原型规范对齐）
+ * - 规范来源：land-ai-smart-site-meta-blue.html（用户提供的设计稿）
+ * - 品牌主色：纯蓝 #3B82F6（+ light-3/5/7/8/9 / dark-2 / dark-3）
+ * - 中性色阶：#111827 / #1F2937 / #4B5563 / #6B7280 / #9CA3AF
+ * - 背景层级：#F9FAFB / #FFFFFF / #F3F4F6 / #EFF6FF
+ * - 功能色：#10B981 / #F59E0B / #EF4444
+ * - 圆角：pill 100px、card 16px、md 14px（原型 --r-pill / --r-card / --r-md）
+ * - 字体：Inter / Noto Sans SC 栈（原型 --font）
+ * - 阴影：原型低饱和中性投影 rgba(15,23,42,·)
+ * - 兼容：保留所有旧变量名（映射到新值），保证现有组件无需改动即可渲染
  * ============================================================ */
 :root {
-  /* ---- 品牌色板（纯蓝） ---- */
+  /* ---- 品牌色板（纯蓝 #3B82F6） ---- */
   --brand: #3B82F6;
   --brand-light-3: #60A5FA;
   --brand-light-5: #93C5FD;
@@ -16,28 +21,39 @@
   --brand-dark-2: #2563EB;
   --brand-dark-3: #1D4ED8;
 
+  /* ---- 中性色阶 ---- */
+  --ink: #111827;
+  --ink-2: #1F2937;
+  --body: #4B5563;
+  --muted: #6B7280;
+  --muted-2: #9CA3AF;
+  --placeholder: #9CA3AF;
+
   /* ---- 功能色 ---- */
   --c-success: #10B981;
   --c-warning: #F59E0B;
   --c-danger:  #EF4444;
   --c-info:    #6B7280;
 
-  /* ---- 背景层级（简洁浅色） ---- */
+  /* ---- 背景层级 ---- */
   --bg-base:    #F9FAFB;
   --bg-panel:   #FFFFFF;
   --bg-subtle:  #F3F4F6;
   --bg-hover:   #F3F4F6;
   --bg-active:  #EFF6FF;
+  --bg-sunken:  #E5E7EB;
 
-  /* ---- 边框（干净浅灰） ---- */
-  --border-light:   #F3F4F6;
+  /* ---- 边框 ---- */
+  --border-light:   #E5E7EB;
   --border-lighter: #E5E7EB;
   --border-strong:  #D1D5DB;
 
-  /* ---- 文字（高对比，商务感） ---- */
+  /* ---- 文字 ---- */
   --text-primary:   #111827;
   --text-regular:   #1F2937;
-  --text-secondary: #4B5563;
+  --text-body:      #4B5563;
+  --text-secondary: #6B7280;
+  --text-tertiary:  #9CA3AF;
   --text-disabled:  #9CA3AF;
 
   /* ---- 间距 ---- */
@@ -47,23 +63,35 @@
   --gap-lg: 16px;
   --gap-xl: 24px;
 
-  /* ---- 圆角 ---- */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-full: 999px;
+  /* ---- 圆角（对齐原型 --r-pill 100 / --r-card 16 / --r-md 14） ---- */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 16px;
+  --radius-full: 100px;
+  /* 语义别名，便于组件直读原型规范 */
+  --radius-pill: 100px;
+  --radius-card: 16px;
 
-  /* ---- 布局尺寸 ---- */
-  --topnav-height: 52px;
-  --statusbar-height: 32px;
-  --left-panel-width: 320px;
-  --right-panel-width: 380px;
+  /* ---- 字体（原型 --font） ---- */
+  --font: "Inter", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui,
+    -apple-system, sans-serif;
 
-  /* ---- 阴影（简洁、低饱和） ---- */
+  /* ---- 布局尺寸（对齐原型 .topbar 63px / .statusbar 39px） ---- */
+  --topnav-height: 63px;
+  --statusbar-height: 39px;
+  --left-panel-width: 360px;
+  --right-panel-width: 430px;
+  /* 面板内边距（原型 .panel-left 20px / .panel-right 24px） */
+  --panel-pad-left: 20px;
+  --panel-pad-right: 24px;
+
+  /* ---- 阴影（原型低饱和中性投影） ---- */
   --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
   --shadow-md: 0 2px 8px rgba(15, 23, 42, 0.08);
   --shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.10);
+  --shadow-brand: 0 6px 18px rgba(37, 99, 235, 0.28);
+  --shadow-brand-lg: 0 10px 24px rgba(37, 99, 235, 0.34);
 
   /* ---- 动效 ---- */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -74,7 +102,7 @@
 
   /* ============================================================
    * 旧变量名兼容映射（让现有组件无需改动即可渲染）
-   * 旧玻璃拟态 → 新简洁白卡；旧品牌青绿 → 新品牌纯蓝
+   * 旧玻璃拟态 → 白卡；旧品牌纯蓝 → 原型纯蓝
    * ============================================================ */
   --glass-bg-soft:    var(--bg-panel);
   --glass-bg:         var(--bg-panel);

@@ -7,6 +7,8 @@ export const useAppStore = defineStore('app', () => {
   /** 竞赛演示模式：放大字号、显示一键演示 */
   const contestMode = ref(false)
   const helpVisible = ref(false)
+  /** 右侧面板选中页签（result / chart / report） */
+  const rightTab = ref('result')
   /** mock / real 连接状态 */
   const backendMode = ref<'mock' | 'real'>(USE_MOCK ? 'mock' : 'real')
   const backendAlive = ref(USE_MOCK)
@@ -23,6 +25,7 @@ export const useAppStore = defineStore('app', () => {
   return {
     contestMode,
     helpVisible,
+    rightTab,
     backendMode,
     backendAlive,
     statusMessage,

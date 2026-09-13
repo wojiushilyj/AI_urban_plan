@@ -21,20 +21,29 @@ const loading = ref(false)
 const failed = ref(false)
 const showDetail = ref(false)
 
+/** 专家权重：仅取后端最近一次选址计算返回的 AHP+熵权组合（未计算时不显示专家条） */
+const expertWeights = computed<Record<string, number> | null>(() => {
+  const fromRun = result.response?.expert_weights
+  return fromRun && Object.keys(fromRun).length ? fromRun : null
+})
+
+/** 专家权重是否尚未生成（还没执行过选址计算） */
+const expertIsFallback = computed(() => expertWeights.value === null)
+
 /** 柱状条相对最大值的宽度（%） */
 const maxWeight = computed(() => {
   const lw = model.value?.learned_weights ?? {}
-  const ew = result.response?.expert_weights ?? {}
+  const ew = expertWeights.value ?? {}
   const vals = [...Object.values(lw), ...Object.values(ew)]
   return vals.length ? Math.max(...vals) : 1
 })
 const barW = (v: number): string => `${Math.max(2, (v / (maxWeight.value || 1)) * 100)}%`
 
-/** 学习权重 vs 专家权重（专家权重来自最近一次计算，未计算时为空） */
+/** 学习权重 vs 专家权重 */
 const rows = computed(() => {
   const lw = model.value?.learned_weights
   if (!lw) return []
-  const ew = result.response?.expert_weights
+  const ew = expertWeights.value
   return FACTOR_DEFS.map((f) => ({
     id: f.id,
     name: f.name,
@@ -101,7 +110,10 @@ onMounted(load)
               <i class="ai-card__dot ai-card__dot--expert" />专家
             </span>
           </div>
-          <div v-for="r in rows" :key="r.id" class="ai-card__row">
+          <div v-if="expertIsFallback" class="ai-card__fallback">
+          专家权重在执行选址计算后生成（本次 AHP+熵权组合值）
+        </div>
+        <div v-for="r in rows" :key="r.id" class="ai-card__row">
             <span class="ai-card__row-name">{{ r.name }}</span>
             <span class="ai-card__bars">
               <i class="ai-card__bar ai-card__bar--ai" :style="{ width: barW(r.learned) }" />
@@ -197,15 +209,15 @@ onMounted(load)
   transform: translateY(-50%);
   width: 3px;
   height: 14px;
-  background: #7C5CE6;
+  background: var(--brand-dark-2);
   border-radius: 2px;
 }
 .ai-card__badge {
   font-size: 11px;
   font-weight: 500;
-  color: #7C5CE6;
-  background: rgba(124, 92, 230, 0.1);
-  border: 1px solid rgba(124, 92, 230, 0.25);
+  color: var(--brand-dark-2);
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.25);
   border-radius: 999px;
   padding: 1px 7px;
 }
@@ -229,13 +241,13 @@ onMounted(load)
   align-items: center;
   flex: 1;
   padding: 6px 0;
-  background: rgba(124, 92, 230, 0.06);
+  background: var(--brand-light-9);
   border-radius: var(--radius-sm);
 }
 .ai-card__metric-val {
   font-size: 17px;
   font-weight: 700;
-  color: #6B4FD8;
+  color: var(--brand-dark-2);
   font-variant-numeric: tabular-nums;
 }
 .ai-card__metric-label {
@@ -271,13 +283,18 @@ onMounted(load)
   border-radius: 2px;
   display: inline-block;
 }
-.ai-card__dot--ai { background: #7C5CE6; }
-.ai-card__dot--expert { background: #9AA4B2; }
+.ai-card__dot--ai { background: var(--brand-dark-2); }
+.ai-card__dot--expert { background: var(--muted-2); }
 .ai-card__row {
   display: flex;
   align-items: center;
   gap: var(--gap-sm);
   font-size: 13px;
+}
+.ai-card__fallback {
+  font-size: 11px;
+  color: var(--text-tertiary, var(--text-secondary));
+  line-height: 1.5;
 }
 .ai-card__row-name {
   width: 56px;
@@ -296,8 +313,8 @@ onMounted(load)
   border-radius: 3px;
   transition: width var(--duration-base) var(--ease-out);
 }
-.ai-card__bar--ai { background: #7C5CE6; }
-.ai-card__bar--expert { background: #9AA4B2; }
+.ai-card__bar--ai { background: var(--brand-dark-2); }
+.ai-card__bar--expert { background: var(--muted-2); }
 .ai-card__row-val {
   width: 46px;
   text-align: right;
@@ -330,7 +347,7 @@ onMounted(load)
   border: none;
   padding: 0;
   font-size: 12px;
-  color: #6B4FD8;
+  color: var(--brand-dark-2);
   cursor: pointer;
 }
 .ai-card__detail {

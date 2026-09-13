@@ -7,7 +7,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import maplibregl from 'maplibre-gl'
 import type { Geometry } from 'geojson'
 import { ElMessage } from 'element-plus'
-import { useMap, TIANDITU_AVAILABLE } from '../../composables/useMap'
+import { useMap, DEFAULT_ZOOM, TIANDITU_AVAILABLE } from '../../composables/useMap'
 import { useMapLayers } from '../../composables/useMapLayers'
 import { useMeasure } from '../../composables/useMeasure'
 import { useMapStore, type FeaturePick } from '../../store/map'
@@ -32,6 +32,9 @@ const scenario = useScenarioStore()
 const webgl = detectWebgl()
 /** 非空即表示地图无法渲染，模板改为显示说明面板而不是一片白 */
 const mapIssue = ref('')
+
+/** 地图缩放级别（传给底图卡头部右侧展示；原独立状态胶囊已并入底图卡） */
+const zoomLevel = ref(DEFAULT_ZOOM)
 
 /** 选中地块（用于右侧贴边卡片） */
 const selectedParcel = computed(
@@ -117,7 +120,13 @@ onMounted(() => {
   try {
     const m = init(container.value, mapStore.basemap)
     mapStore.mapInstance = m
+    // 比例尺（左下）；导航控件已按需求移除（右下角保留给地块详情卡）
+    m.addControl(new maplibregl.ScaleControl({ maxWidth: 80, unit: 'metric' }), 'bottom-left')
+    m.on('zoom', () => {
+      zoomLevel.value = Math.round(m.getZoom())
+    })
     m.on('load', () => {
+      zoomLevel.value = Math.round(m.getZoom())
       layers.renderGeoLayers(mapStore.layers)
       // 要素查询的点击监听挂在 map 上（不绑定具体图层），底图切换重建 style 后依然有效
       m.on('click', onMapClick)
@@ -262,8 +271,10 @@ watch(
   <div ref="container" class="map-stage">
     <MapToolbar class="map-stage__toolbar" />
     <div class="map-stage__tl">
-      <BasemapControl />
       <LayerManager />
+    </div>
+    <div class="map-stage__tr">
+      <BasemapControl :zoom="zoomLevel" />
     </div>
     <ParcelInfoCard
       class="map-stage__parcel-card"
@@ -307,28 +318,38 @@ watch(
 .map-stage :deep(canvas) {
   outline: none;
 }
+/* 竖向工具卡：地图左上角（原型 .map-toolbar left 20 / top 20） */
 .map-stage__toolbar {
   position: absolute;
-  top: var(--gap-md);
-  left: 50%;
-  transform: translateX(-50%);
+  top: 20px;
+  left: 20px;
   z-index: 10;
 }
-/* 底图选择 + 图层选择：地图左上角（用户要求移到最左侧） */
+/* 图层选择卡：地图左上角、竖向工具卡右侧（原底图卡位置） */
 .map-stage__tl {
   position: absolute;
-  top: var(--gap-md);
-  left: var(--gap-md);
+  top: 20px;
+  left: 80px;
   display: flex;
   flex-direction: column;
   gap: var(--gap-sm);
   z-index: 10;
   align-items: flex-start;
 }
+/* 底图选择卡：地图右上角（避免与右下角的地块卡/导航控件重叠） */
+.map-stage__tr {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  z-index: 10;
+}
 .map-stage__parcel-card {
   position: absolute;
-  bottom: var(--gap-md);
-  right: var(--gap-md);
+  bottom: 20px;
+  right: 20px;
   z-index: 20;
 }
 /* WebGL 不可用时的说明面板（覆盖地图区域，避免一片白无从判断） */

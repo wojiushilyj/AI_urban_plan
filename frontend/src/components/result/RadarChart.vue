@@ -22,8 +22,8 @@ function render(): void {
     radar: {
       indicator: indicators,
       radius: '62%',
-      axisName: { fontSize: 12, color: '#4A5568' },
-      splitArea: { areaStyle: { color: ['#FFFFFF', '#F5F7FA'] } },
+      axisName: { fontSize: 12, color: '#6B7280' },
+      splitArea: { areaStyle: { color: ['#FFFFFF', '#F9FAFB'] } },
     },
     series: [
       {

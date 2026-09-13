@@ -2,6 +2,7 @@
 import type { ChatMessage, ParseResult } from '../types/ai'
 import { get, post } from './client'
 import { mockChat, mockParseRequirement } from '../mock/aiChat'
+import { mockGetAiModel } from '../mock/aiModel'
 
 export async function parseRequirement(text: string): Promise<ParseResult> {
   return post<ParseResult>('/api/ai/parse', { text }, () => mockParseRequirement(text))
@@ -57,8 +58,9 @@ export interface AiModelInfo {
 
 /**
  * 拉取偏好学习模型的指标与学习权重。
- * mock 模式下返回 `available: false`，前端据此优雅降级（不展示 AI 面板）。
+ * mock 模式下返回内置「机器学习模式」演示模型（mock/aiModel.ts），
+ * 「AI 偏好学习」页签据此完整展示机器学习内容；接入真实后端后展示实际训练结果。
  */
 export async function getAiModel(): Promise<AiModelInfo> {
-  return get<AiModelInfo>('/api/ai/model', () => ({ available: false, reason: 'mock 模式' }))
+  return get<AiModelInfo>('/api/ai/model', mockGetAiModel)
 }

@@ -6,6 +6,7 @@ import { computed, ref } from 'vue'
 import { useResultStore } from '../../store/result'
 import { useScenarioStore } from '../../store/scenario'
 import { useConfigStore, ALGORITHM_OPTIONS } from '../../store/config'
+import { useAiStore } from '../../store/ai'
 import { useMapStore } from '../../store/map'
 import { mockGenerateReport } from '../../mock/report'
 import type { ReportDoc } from '../../types/report'
@@ -16,6 +17,7 @@ import ExportButtons from './ExportButtons.vue'
 const result = useResultStore()
 const scenario = useScenarioStore()
 const config = useConfigStore()
+const ai = useAiStore()
 const map = useMapStore()
 
 const report = ref<ReportDoc | null>(null)
@@ -47,8 +49,35 @@ const exportContext = computed(() => ({
   reportTitle: report.value?.title ?? '选址报告',
   scenario: scenario.detail ?? undefined,
   result: result.response ?? undefined,
-  weights: config.weights,
+  weights: result.response?.weights ?? config.weights,
   map: map.mapInstance ?? undefined,
+  /** Word 报告数据源：按用户模板结构组装（reportDocx.ts） */
+  docxSource:
+    scenario.detail && result.response
+      ? {
+          scenario: scenario.detail,
+          result: result.response,
+          weights: result.response.weights ?? config.weights,
+          preferences: config.preferences,
+          parseResult: ai.parseResult,
+          config: {
+            algorithmName: algoName.value,
+            gridSize: config.gridSize,
+            topN: config.topN,
+            minAreaHa: config.minAreaHa,
+            targetAreaHa: config.targetAreaHa,
+            areaRange: config.areaRange,
+            weightModeName:
+              config.weightMode === 'expert'
+                ? '专家权重（AHP+熵权）'
+                : config.weightMode === 'learned'
+                  ? 'AI 学习权重'
+                  : '专家 + AI 混合权重',
+            weightSource: result.response.weight_source,
+          },
+          map: map.mapInstance ?? undefined,
+        }
+      : undefined,
 }))
 </script>
 
@@ -66,7 +95,12 @@ const exportContext = computed(() => ({
         description="先完成选址计算，再生成报告"
         :image-size="70"
       />
-      <ReportPreview v-else-if="report" :report="report" />
+      <template v-else-if="report">
+        <div class="report-generator__notice">
+          以下页面内容为<b>简版报告</b>（纯文字速览）。完整封面、目录、图表与表格排版请点击「Word 详细报告」导出；如需打印当前预览，可导出「PDF 简版报告」。
+        </div>
+        <ReportPreview :report="report" />
+      </template>
       <div v-else class="report-generator__placeholder">
         点击「生成报告」基于当前 Top-{{ config.topN }} 候选结果生成
       </div>
@@ -75,9 +109,6 @@ const exportContext = computed(() => ({
 </template>
 
 <style scoped>
-.report-generator {
-  padding: var(--gap-md);
-}
 .report-generator__toolbar {
   display: flex;
   align-items: center;
@@ -90,5 +121,15 @@ const exportContext = computed(() => ({
   text-align: center;
   color: var(--text-secondary);
   font-size: 14px;
+}
+.report-generator__notice {
+  margin-bottom: var(--gap-md);
+  padding: 10px 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 13px;
+  line-height: 1.6;
 }
 </style>

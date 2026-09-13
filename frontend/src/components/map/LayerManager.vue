@@ -2,9 +2,21 @@
 /** 图层管理（模块 5.2）：图层按大类分组，每类有总开关 + 每图层单独开关，大类可点击展开/收缩 */
 import { computed, ref } from 'vue'
 import { useMapStore, type BusinessLayer } from '../../store/map'
+import { LAYER_COUNTS } from '../../api/layerCounts.generated'
+import AppIcon from '../common/AppIcon.vue'
 
 const mapStore = useMapStore()
 const expanded = ref(false)
+
+/** 某图层的要素数量文案：选址结果类跟随计算结果，其余取离线统计；未知为 null（不显示）。格式如「（7851项）」 */
+function countText(l: BusinessLayer): string | null {
+  if (l.groupId === 'result') {
+    // 候选地块 / 地块序号共用同一批候选要素
+    return mapStore.result ? `（${mapStore.result.candidates.length}项）` : null
+  }
+  const n = LAYER_COUNTS[l.id]
+  return typeof n === 'number' ? `（${n}项）` : null
+}
 
 function toggle(): void {
   expanded.value = !expanded.value
@@ -42,12 +54,12 @@ const onCount = computed(() => mapStore.layers.filter((l) => l.visible).length)
     <!-- 面板级标题：点击展开/收缩 -->
     <div class="layer-manager__header" @click="toggle">
       <span class="layer-manager__title">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4z"/><path d="M12 8v8M8 12h8"/></svg>
+        <AppIcon class="layer-manager__title-icon" name="layers" :size="17" />
         图层
       </span>
       <span class="layer-manager__count">
         {{ onCount }}/{{ mapStore.layers.length }}
-        <svg class="layer-manager__chevron" :class="{ 'is-collapsed': !expanded }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M6 9l6 6 6-6"/></svg>
+        <AppIcon class="layer-manager__chevron" :class="{ 'is-collapsed': !expanded }" name="chevron-down" :size="15" />
       </span>
     </div>
 
@@ -74,7 +86,7 @@ const onCount = computed(() => mapStore.layers.filter((l) => l.visible).length)
         <!-- 大类下图层 -->
         <div v-show="g.expanded" class="layer-group__list">
           <div v-for="l in groupLayers(g.id)" :key="l.id" class="layer-manager__item">
-            <span class="layer-manager__name" :class="{ 'is-dim': !l.visible || isPending(l) }">{{ l.name }}</span>
+            <span class="layer-manager__name" :class="{ 'is-dim': !l.visible || isPending(l) }">{{ l.name }}<span class="layer-manager__num">{{ countText(l) }}</span></span>
             <el-switch
               :model-value="l.visible"
               size="small"
@@ -92,22 +104,24 @@ const onCount = computed(() => mapStore.layers.filter((l) => l.visible).length)
 
 <style scoped>
 .layer-manager {
-  width: 240px;
-  background: var(--bg-panel);
+  width: 244px;
+  background: #fff;
   border: 1px solid var(--border-lighter);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-card);
   box-shadow: var(--shadow-md);
   overflow: hidden;
 }
+/* 面板头（对齐原型 .mp-head：44px / 13px / 700） */
 .layer-manager__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--gap-sm);
-  padding: 7px 10px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-regular);
+  height: 44px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
   cursor: pointer;
   user-select: none;
 }
@@ -119,6 +133,10 @@ const onCount = computed(() => mapStore.layers.filter((l) => l.visible).length)
   align-items: center;
   gap: 5px;
   color: var(--text-primary);
+}
+/* 图层图标用品牌钴蓝（Meta 原型 .mp-head 的处理方式） */
+.layer-manager__title-icon {
+  color: var(--brand);
 }
 .layer-manager__count {
   display: inline-flex;
@@ -196,6 +214,16 @@ const onCount = computed(() => mapStore.layers.filter((l) => l.visible).length)
   text-overflow: ellipsis;
 }
 .layer-manager__name.is-dim {
+  color: var(--text-disabled);
+}
+/* 图层名右侧的要素数量（离线统计 / 候选地块数），如「（7851项）」 */
+.layer-manager__num {
+  margin-left: 3px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.layer-manager__name.is-dim .layer-manager__num {
   color: var(--text-disabled);
 }
 /* 尚未可用的说明（分析前「选址结果」类无内容可渲染） */

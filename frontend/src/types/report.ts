@@ -1,6 +1,6 @@
 /** 报告生成与导出类型（模块 7） */
 
-export type ExportFormat = 'pdf' | 'excel' | 'image'
+export type ExportFormat = 'docx' | 'pdf' | 'excel' | 'image'
 
 export interface ReportSection {
   title: string

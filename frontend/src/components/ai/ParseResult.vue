@@ -11,6 +11,7 @@ import { useConfigStore } from '../../store/config'
 import { useMapStore } from '../../store/map'
 import { useResultStore } from '../../store/result'
 import CardContainer from '../common/CardContainer.vue'
+import AppIcon from '../common/AppIcon.vue'
 
 const ai = useAiStore()
 const scenario = useScenarioStore()
@@ -54,8 +55,9 @@ async function apply(): Promise<void> {
           <el-tag v-for="n in constraintNames" :key="n" size="small" type="info" style="margin: 1px 3px 1px 0">{{ n }}</el-tag>
         </span>
       </div>
-      <el-button type="primary" size="small" style="width: 100%; margin-top: 8px" @click="apply">
-        ⚡ 一键应用门类与约束
+      <el-button type="primary" size="small" class="parse-result__apply" style="width: 100%; margin-top: 8px" @click="apply">
+        <AppIcon name="bolt" :size="14" />
+        <span>一键应用门类与约束</span>
       </el-button>
     </div>
   </CardContainer>
@@ -81,6 +83,9 @@ async function apply(): Promise<void> {
   flex: 1;
   color: var(--text-regular);
   line-height: 1.8;
+}
+.parse-result__apply {
+  gap: 6px;
 }
 .parse-result__weight {
   display: inline-block;

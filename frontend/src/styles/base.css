@@ -1,5 +1,5 @@
 /* ============================================================
- * reset + 基础样式（v2 简洁蓝白）
+ * reset + 基础样式（v4 原型规范对齐）
  * ============================================================ */
 *,
 *::before,
@@ -16,8 +16,8 @@ body,
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "HarmonyOS Sans SC",
-    "Microsoft YaHei", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* 字体栈对齐原型 --font：Inter 优先，中文回退 Noto Sans SC / PingFang SC */
+  font-family: var(--font);
   font-size: 14px;
   line-height: 1.6;
   color: var(--text-primary);
@@ -33,11 +33,11 @@ body {
   height: 6px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #D1D5DB;
+  background: var(--border-strong);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #9CA3AF;
+  background: var(--muted-2);
 }
 ::-webkit-scrollbar-track {
   background: transparent;

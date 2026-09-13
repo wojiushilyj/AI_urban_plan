@@ -5,4 +5,5 @@
 export { mockListScenarios, mockGetScenario, SCENARIOS } from './scenarios'
 export { mockRunSelection, preloadSelectionLayers } from './candidates'
 export { mockParseRequirement, mockChat, TEMPLATES } from './aiChat'
+export { mockGetAiModel } from './aiModel'
 export { mockGenerateReport } from './report'

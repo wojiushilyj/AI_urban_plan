@@ -23,12 +23,21 @@
  * 初选口径：硬约束一票否决 + 最小面积 + 用地规模区间。
  * 用地规模区间仅在用户需求中提到占地面积时生效（目标 ± 容差，容差初值 ±50%，
  * 见 utils/area.ts 的 DEFAULT_AREA_TOLERANCE，最终限值由后端算法设计人员核定）。
+ *
+ * 响应契约与后端 POST /api/selection/run 严格对齐（backend/app/services/suitability.py）：
+ *   weights / weight_mode / weight_source   组合赋权（偏好覆盖 > expert > learned > blended）
+ *   expert_weights                          AHP×α + 熵权×(1−α) 对照权重
+ *   contributions / top_driver / top_weakness  留一法因子贡献分解
+ *   build_density                           现状建筑占地率（current-building 图层）
+ *   robustness                              蒙特卡洛 200 次权重扰动 Top-N 入选概率
+ *   sensitivity                             各因子全局平均绝对贡献
  */
 import type { Polygon } from 'geojson'
 import type { ScenarioDetail } from '../types/scenario'
 import type { CandidateParcel, SelectionRequest, SelectionResponse as SR } from '../types/selection'
 import { loadLayers, type LayerFeatures, type LayerId } from '../api/layers'
 import { sleep } from './delay'
+import { mockGetAiModel } from './aiModel'
 import { areaWindow, DEFAULT_AREA_TOLERANCE } from '../utils/area'
 import {
   bboxOfGeometry,
@@ -49,6 +58,9 @@ import {
 /** 候选池唯一来源：控规工业用地 */
 const POOL_LAYER: LayerId = 'regulated-industrial'
 
+/** 现状建筑（拆迁量代理：地块内建筑占地率） */
+const BUILDING_LAYER: LayerId = 'current-building'
+
 /** 硬约束（一票否决）：生态保护红线、永久基本农田 */
 const HARD_CONSTRAINT_LAYERS: LayerId[] = ['eco-redline', 'perm-farmland']
 
@@ -63,7 +75,12 @@ const CONTEXT_LAYERS: LayerId[] = [
 ]
 
 /** 选址计算所需全部图层 */
-const REQUIRED_LAYERS: LayerId[] = [POOL_LAYER, ...HARD_CONSTRAINT_LAYERS, ...CONTEXT_LAYERS]
+const REQUIRED_LAYERS: LayerId[] = [
+  POOL_LAYER,
+  BUILDING_LAYER,
+  ...HARD_CONSTRAINT_LAYERS,
+  ...CONTEXT_LAYERS,
+]
 
 /* ==================== 算法常量 ==================== */
 
@@ -246,6 +263,152 @@ function rescale(values: number[]): number[] {
   return values.map((v) => round1(SCORE_MIN + ((v - min) / span) * (SCORE_MAX - SCORE_MIN)))
 }
 
+/* ==================== 赋权与可解释性（对齐 backend suitability.py） ==================== */
+
+const round4 = (x: number): number => Math.round(x * 1e4) / 1e4
+
+/** 权重字典对齐到因子顺序并归一化（缺项均分补齐） */
+function alignWeights(map: Record<string, number>, ids: string[]): number[] {
+  const w = ids.map((id) => Math.max(0, map[id] ?? 1 / ids.length))
+  const s = w.reduce((a, b) => a + b, 0)
+  return s > 0 ? w.map((v) => v / s) : ids.map(() => 1 / ids.length)
+}
+
+/** 熵权法：客观权重，反映各因子在候选集内的信息量（离散度） */
+function entropyWeights(rows: number[][]): number[] {
+  const m = rows.length
+  const n = rows[0]?.length ?? 0
+  if (m <= 1 || !n) return Array.from({ length: n }, () => 1 / Math.max(1, n))
+  const mins = Array.from({ length: n }, (_, j) => Math.min(...rows.map((r) => r[j])))
+  const shifted = rows.map((r) => r.map((x, j) => x - mins[j]))
+  const colSum = Array.from({ length: n }, (_, j) => {
+    const s = shifted.reduce((a, r) => a + r[j], 0)
+    return s === 0 ? 1 : s
+  })
+  const k = 1 / Math.log(m)
+  const d = Array.from({ length: n }, (_, j) => {
+    let e = 0
+    for (const r of shifted) {
+      const p = r[j] / colSum[j]
+      if (p > 0) e -= p * Math.log(p)
+    }
+    return Math.max(0, 1 - k * e)
+  })
+  const total = d.reduce((a, b) => a + b, 0)
+  return total > 0 ? d.map((v) => v / total) : Array.from({ length: n }, () => 1 / n)
+}
+
+interface CombinedWeights {
+  /** 本次实际生效权重（已归一化，与 factorIds 对齐） */
+  weights: number[]
+  /** 权重来源中文说明 */
+  source: string
+  /** 对照用专家权重（AHP+熵权）字典 */
+  expertMap: Record<string, number>
+}
+
+/**
+ * 组合赋权：优先级 前端偏好权重 > weight_mode（expert / learned / blended）。
+ * 与后端 combine_weights 逻辑一致。
+ */
+function combineWeights(
+  factorIds: string[],
+  scenario: ScenarioDetail,
+  rows: number[][],
+  req: SelectionRequest,
+): CombinedWeights {
+  const n = factorIds.length
+  const override = req.weights_override ?? {}
+  if (factorIds.some((id) => (override[id] ?? 0) > 0)) {
+    return { weights: alignWeights(override, factorIds), source: '前端偏好权重', expertMap: { ...override } }
+  }
+  const ahpRaw = factorIds.map((id) => scenario.weights_ahp[id] ?? 1 / n)
+  const ahpSum = ahpRaw.reduce((a, b) => a + b, 0) || 1
+  const ahp = ahpRaw.map((v) => v / ahpSum)
+  const ent = entropyWeights(rows)
+  const alpha = req.alpha ?? 0.5
+  const mixed = ahp.map((v, j) => alpha * v + (1 - alpha) * ent[j])
+  const mixedSum = mixed.reduce((a, b) => a + b, 0) || 1
+  const expert = mixed.map((v) => v / mixedSum)
+  const expertMap = Object.fromEntries(factorIds.map((id, j) => [id, round4(expert[j])]))
+
+  const mode = req.weight_mode ?? 'expert'
+  if (mode === 'expert') {
+    return { weights: expert, source: `AHP×${alpha.toFixed(2)} + 熵权×${(1 - alpha).toFixed(2)}`, expertMap }
+  }
+  const learned = alignWeights(mockGetAiModel().learned_weights ?? {}, factorIds)
+  if (mode === 'learned') {
+    return { weights: learned, source: 'AI 学习权重（逻辑回归，基于真实开发事实）', expertMap }
+  }
+  const blended = expert.map((v, j) => 0.5 * v + 0.5 * learned[j])
+  const bSum = blended.reduce((a, b) => a + b, 0) || 1
+  return { weights: blended.map((v) => v / bSum), source: '专家权重与 AI 学习权重各半（blended）', expertMap }
+}
+
+/** 展示得分向量：regression → 线性加权质量；topsis/kmeans → TOPSIS 贴近度 */
+function scoreVector(rows: number[][], weights: number[], algo?: string): number[] {
+  return algo === 'regression' ? regressionScore(rows, weights) : topsisCloseness(rows, weights)
+}
+
+/** 留一法因子贡献：把第 j 个因子替换为均值后重算，`原分 − 扰动分` 即边际贡献 */
+function leaveOneOut(
+  rows: number[][],
+  weights: number[],
+  algo?: string,
+): { contrib: number[][]; sensitivity: Record<string, number> } {
+  const m = rows.length
+  const n = rows[0]?.length ?? 0
+  const contrib = rows.map(() => Array<number>(n).fill(0))
+  if (!m || !n) return { contrib, sensitivity: {} }
+  const base = scoreVector(rows, weights, algo)
+  for (let j = 0; j < n; j++) {
+    const mean = rows.reduce((a, r) => a + r[j], 0) / m
+    const perturbed = rows.map((r) => r.slice())
+    perturbed.forEach((r) => {
+      r[j] = mean
+    })
+    const ps = scoreVector(perturbed, weights, algo)
+    for (let i = 0; i < m; i++) contrib[i][j] = base[i] - ps[i]
+  }
+  const sensitivity: Record<string, number> = {}
+  for (let j = 0; j < n; j++) {
+    const avg = contrib.reduce((a, r) => a + Math.abs(r[j]), 0) / m
+    sensitivity[`f${j}`] = round4(avg)
+  }
+  return { contrib, sensitivity }
+}
+
+/** 蒙特卡洛稳健性：权重 ±20% 量级随机扰动 200 次，统计 Top-N 入选频率 */
+function monteCarlo(
+  rows: number[][],
+  weights: number[],
+  topN: number,
+  samples = 200,
+): { prob: number[]; samples: number; meanStability: number } {
+  const m = rows.length
+  if (!m) return { prob: [], samples: 0, meanStability: 0 }
+  let seed = 7
+  const rand = (): number => {
+    seed = (seed * 1664525 + 1013904223) >>> 0
+    return seed / 4294967296
+  }
+  const k = Math.max(1, Math.min(topN, m))
+  const counts = new Array<number>(m).fill(0)
+  for (let s = 0; s < samples; s++) {
+    const w = weights.map((v) => Math.max(1e-6, v * (0.8 + 0.4 * rand())))
+    const sum = w.reduce((a, b) => a + b, 0) || 1
+    const c = topsisCloseness(rows, w.map((v) => v / sum))
+    c
+      .map((v, i) => [v, i] as const)
+      .sort((a, b) => b[0] - a[0])
+      .slice(0, k)
+      .forEach(([, i]) => counts[i]++)
+  }
+  const prob = counts.map((c) => c / samples)
+  const topProb = [...prob].sort((a, b) => b - a).slice(0, k)
+  return { prob, samples, meanStability: topProb.reduce((a, b) => a + b, 0) / k }
+}
+
 /* ==================== 图层加载 ==================== */
 
 /**
@@ -283,6 +446,8 @@ interface ScoredParcel extends RawParcel {
   dService: number
   dPark: number
   dIndLand: number
+  /** 地块内现状建筑占地率（拆迁量代理，0–1） */
+  density: number
 }
 
 /** mock：POST /api/selection/run —— 基于真实控规工业用地图斑的选址计算 */
@@ -381,6 +546,22 @@ export async function mockRunSelection(
     for (const f of fc.features) servicePts.push(interiorPoint(f.geometry))
   }
 
+  /** 现状建筑预计算（内部点 + 面积），用于地块建筑占地率 */
+  const buildings: { poly: Polygon; bbox: BBox; pt: XY; areaM2: number }[] = []
+  const buildingFc = byId.get(BUILDING_LAYER)
+  if (buildingFc) {
+    for (const f of buildingFc.features) {
+      if (f.geometry.type !== 'Polygon') continue
+      const poly = f.geometry as Polygon
+      buildings.push({
+        poly,
+        bbox: bboxOfGeometry(poly),
+        pt: interiorPoint(poly),
+        areaM2: polygonAreaM2(poly),
+      })
+    }
+  }
+
   const factorIds = scenario.factors.map((f) => f.id)
 
   const scored: ScoredParcel[] = feasible.map((p) => {
@@ -392,6 +573,14 @@ export async function mockRunSelection(
     const dService = minDistanceToPointsM(p.pt, servicePts)
     const dYellow = minDistanceM(p.pt, yellows)
 
+    // 现状建筑占地率：地块内建筑轮廓面积之和 / 地块面积（拆迁量代理）
+    let coveredM2 = 0
+    for (const b of buildings) {
+      if (!bboxContains(p.bbox, b.pt)) continue
+      if (pointInPolygon(b.pt, p.geometry)) coveredM2 += b.areaM2
+    }
+    const density = Math.min(1, coveredM2 / Math.max(1, p.areaHa * 1e4))
+
     // 城市规划：城镇开发边界覆盖（0–60）+ 形态规整度（0–25）+ 成片开发规模（0–15）
     // 注意：边界外的分值上限必须低于边界内的基准，避免「距边界越近分越高」的逻辑倒挂
     const udbTerm = insideUdb ? 60 : Math.min(55, decayScore(dUdb, 2000, 15))
@@ -402,8 +591,8 @@ export async function mockRunSelection(
       0.5 * (inPark ? 100 : decayScore(dPark, DECAY_M.industry, 20)) +
       0.5 * decayScore(dIndLand, 600, 0)
 
-    // 建造成本：规模效应（面积越大单位成本越低）+ 形状规整度
-    const cost = 8 + 45 * p.regularity + 45 * Math.min(p.areaHa / COST_IDEAL_HA, 1)
+    // 建造成本：规模效应 + 形态规整 − 拆迁惩罚（现状建筑占地率），与后端公式一致
+    const cost = 8 + 45 * p.regularity + 45 * Math.min(p.areaHa / COST_IDEAL_HA, 1) - 55 * density
 
     const factors: Record<string, number> = {
       urban_planning: round1(clamp01(urbanPlanning)),
@@ -413,14 +602,13 @@ export async function mockRunSelection(
       cost: round1(clamp01(cost)),
     }
 
-    return { ...p, factors, insideUdb, inPark, dService, dPark, dIndLand }
+    return { ...p, factors, insideUdb, inPark, dService, dPark, dIndLand, density }
   })
 
-  /* ---- 4) 多准则排序 ---- */
+  /* ---- 4) 多准则排序（组合赋权，与后端 combine_weights 同源） ---- */
   const rows = scored.map((s) => factorIds.map((id) => s.factors[id] ?? 0))
-  const weights = factorIds.map(
-    (id) => req.weights_override?.[id] ?? scenario.weights_ahp[id] ?? 1 / factorIds.length
-  )
+  const combined = combineWeights(factorIds, scenario, rows, req)
+  const weights = combined.weights
 
   const baseQuality = regressionScore(rows, weights)
   const closeness = topsisCloseness(rows, weights)
@@ -455,10 +643,39 @@ export async function mockRunSelection(
     .sort((a, b) => ranking[b] - ranking[a])
     .slice(0, Math.max(1, req.top_n))
 
+  /* ---- 5) 可解释性与稳健性（与后端 suitability.py 同源） ---- */
+  const { contrib, sensitivity } = leaveOneOut(rows, weights, req.algorithm)
+  const mc = monteCarlo(rows, weights, req.top_n)
+  const sensMap: Record<string, number> = {}
+  factorIds.forEach((id, j) => {
+    sensMap[id] = sensitivity[`f${j}`] ?? 0
+  })
+
   const candidates: CandidateParcel[] = order.map((idx, i) => {
     const s = scored[idx]
     const parkText = s.inPark ? '园区内' : `距园区${fmtDist(s.dPark)}`
-    const indText = s.dIndLand === 0 ? '现状为工业用地' : `距现状工业${fmtDist(s.dIndLand)}`
+    const aggText = s.dIndLand === 0 ? '紧邻现状工业' : `距现状工业${fmtDist(s.dIndLand)}`
+    const row = contrib[idx] ?? []
+    const contribMap: Record<string, number> = {}
+    factorIds.forEach((id, j) => {
+      contribMap[id] = round4(row[j] ?? 0)
+    })
+    // 主导优势：贡献最大的正项；主要短板：贡献最小的负项（无则空）
+    let topDriver = ''
+    let topWeakness = ''
+    let bestPos = 0
+    let worstNeg = 0
+    factorIds.forEach((id, j) => {
+      const v = row[j] ?? 0
+      if (v > bestPos) {
+        bestPos = v
+        topDriver = id
+      }
+      if (v < worstNeg) {
+        worstNeg = v
+        topWeakness = id
+      }
+    })
     return {
       rank: i + 1,
       score: displayScores[idx],
@@ -469,12 +686,23 @@ export async function mockRunSelection(
         return acc
       }, {}),
       notes:
-        `${s.insideUdb ? '开发边界内' : '开发边界外'} · ${parkText} · ${indText} · ` +
-        `服务点${fmtDist(s.dService)} · 规整度${(s.regularity * 100).toFixed(0)}%`,
-      cluster: clusterRank.get(labels[idx]) ?? 0,
+        `${s.insideUdb ? '开发边界内' : '开发边界外'} · ${parkText} · ${aggText} · ` +
+        `服务节点${fmtDist(s.dService)} · 规整度${(s.regularity * 100).toFixed(0)}% · ` +
+        `现状建筑占地${(s.density * 100).toFixed(0)}%`,
+      cluster: req.algorithm === 'kmeans' ? (clusterRank.get(labels[idx]) ?? 0) : undefined,
       code: s.code,
       source: '控规工业用地',
+      contributions: contribMap,
+      top_driver: topDriver,
+      top_weakness: topWeakness,
+      build_density: Math.round(s.density * 1000) / 1000,
+      robustness: mc.prob[idx] ?? 0,
     }
+  })
+
+  const weightsMap: Record<string, number> = {}
+  factorIds.forEach((id, j) => {
+    weightsMap[id] = round4(weights[j] ?? 0)
   })
 
   const algoLabel =
@@ -508,5 +736,16 @@ export async function mockRunSelection(
       `（真实数据）候选池为控规工业用地 ${totalParcels} 个图斑，` +
       `经底线管控硬约束（${excluded || '无冲突'}）与 ${areaSeg} 筛选后保留 ${feasible.length} 个，` +
       `${algoLabel} 排序输出 Top-${candidates.length} 候选地块。`,
+    weights: weightsMap,
+    expert_weights: combined.expertMap,
+    weight_mode: req.weight_mode ?? 'expert',
+    weight_source: combined.source,
+    sensitivity: sensMap,
+    robustness: {
+      samples: mc.samples,
+      top_n: Math.max(1, Math.min(req.top_n, rows.length)),
+      prob_top_n: mc.prob,
+      mean_stability: Math.round(mc.meanStability * 1000) / 1000,
+    },
   }
 }

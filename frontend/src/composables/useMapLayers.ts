@@ -62,7 +62,7 @@ function makeBadgeImage(rank: number): ImageData {
   ctx.beginPath()
   // 半径内缩描边的一半，让描边外沿正好落在贴图边界内
   ctx.arc(d / 2, d / 2, d / 2 - LABEL_STROKE / 2, 0, Math.PI * 2)
-  ctx.fillStyle = '#1D4ED8'
+  ctx.fillStyle = '#3B82F6'
   ctx.fill()
   ctx.lineWidth = LABEL_STROKE
   ctx.strokeStyle = '#FFFFFF'
@@ -142,7 +142,7 @@ export function useMapLayers(getMap: () => MlMap | null, hooks: LayerHooks = {})
         paint: {
           'fill-color': [
             'interpolate', ['linear'], ['get', 'score'],
-            55, '#BFDBFE', 70, '#60A5FA', 85, '#3B82F6', 95, '#2563EB',
+            55, '#BFDBFE', 70, '#93C5FD', 85, '#3B82F6', 95, '#2563EB',
           ],
           'fill-opacity': 0.5,
         },
@@ -153,7 +153,7 @@ export function useMapLayers(getMap: () => MlMap | null, hooks: LayerHooks = {})
         id: 'candidates-line',
         type: 'line',
         source: 'candidates-src',
-        paint: { 'line-color': '#2563EB', 'line-width': 1.5 },
+        paint: { 'line-color': '#3B82F6', 'line-width': 1.5 },
       })
     }
     // 序号标注（symbol + icon-image，不依赖 glyphs）
@@ -177,7 +177,7 @@ export function useMapLayers(getMap: () => MlMap | null, hooks: LayerHooks = {})
     // 选中地块：更实的面 + 红色加粗描边
     const sel = selectedRank ?? -1
     m.setPaintProperty('candidates-fill', 'fill-opacity', ['case', ['==', ['get', 'rank'], sel], 0.72, 0.45])
-    m.setPaintProperty('candidates-line', 'line-color', ['case', ['==', ['get', 'rank'], sel], '#EF4444', '#2563EB'])
+    m.setPaintProperty('candidates-line', 'line-color', ['case', ['==', ['get', 'rank'], sel], '#EF4444', '#3B82F6'])
     m.setPaintProperty('candidates-line', 'line-width', ['case', ['==', ['get', 'rank'], sel], 4, 1.5])
 
     // 图层面板开关 → 可见性

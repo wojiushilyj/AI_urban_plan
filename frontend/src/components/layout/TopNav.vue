@@ -1,11 +1,27 @@
 <script setup lang="ts">
-/** 顶栏（v2 简洁蓝白）：品牌 + 帮助 */
+/**
+ * 顶栏（对齐设计稿 .topbar）：63px 高。
+ * 结构：品牌（logo 32 + 名称 + AI 徽标）→ 右侧 搜索 / 帮助。
+ * 注：通知、头像已按需求移除。
+ */
+import { onMounted, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useAppStore } from '../../store/app'
+import { runStatus, startStatusPolling } from '../../api/system'
+import AppIcon from '../common/AppIcon.vue'
 
 const app = useAppStore()
+const keyword = ref('')
+
+onMounted(() => startStatusPolling())
 
 function onHelp(): void {
   app.helpVisible = true
+}
+
+function onSearch(): void {
+  const q = keyword.value.trim()
+  ElMessage.info(q ? `搜索「${q}」：地块检索将在对接国土空间规划一张图后开放` : '请输入地块或门类关键词')
 }
 
 const helpHtml = `
@@ -17,39 +33,51 @@ const helpHtml = `
   <li>右侧「结果列表 / 图表分析」联动查看，点击候选地块查看得分</li>
   <li>「报告导出」一键生成报告，导出 PDF / Excel / 图纸图片</li>
 </ol>
-<p style="color:#3B82F6">研究区：桂林市临桂区；数据来源：国土空间规划真实图层数据。正式应用将对接国土空间规划"一张图"实施监督信息系统。</p>
+<p style="color:var(--brand)">研究区：桂林市临桂区；数据来源：国土空间规划真实图层数据。正式应用将对接国土空间规划"一张图"实施监督信息系统。</p>
 `
 </script>
 
 <template>
   <header class="topnav">
+    <!-- 品牌 -->
     <a class="brand" href="#">
       <span class="brand__icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
-          <path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/>
-        </svg>
+        <AppIcon name="brand" :size="32" />
       </span>
-      <span class="brand__text">
-        <span class="brand__name">国土 AI 智慧选址系统</span>
-        <span class="brand__sub">Land.AI Smart Site Selection</span>
-      </span>
+      <span class="brand__name">国土AI智慧选址系统</span>
+      <span class="brand__badge">AI</span>
     </a>
 
-    <div class="topnav__spacer" />
-
-    <div class="topnav__actions">
-      <button class="topnav__icon-btn" @click="onHelp" aria-label="帮助">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01"/></svg>
+    <!-- 右侧工具 -->
+    <div class="nav-tools">
+      <!-- 运行状态灯：提示当前是否接入后台真实算法 -->
+      <el-tooltip :content="runStatus.tip" placement="bottom-end" :show-after="200">
+        <span class="run-status" :class="`run-status--${runStatus.kind}`">
+          <i class="run-status__dot" />
+          {{ runStatus.label }}
+        </span>
+      </el-tooltip>
+      <div class="nav-search">
+        <AppIcon name="search" :size="16" class="nav-search__icon" />
+        <input
+          v-model="keyword"
+          class="nav-search__input"
+          type="text"
+          placeholder="搜索地块 / 门类"
+          @keydown.enter="onSearch"
+        />
+      </div>
+      <button class="icon-btn" title="帮助" @click="onHelp">
+        <AppIcon name="help" :size="20" />
       </button>
-
-      <!-- 帮助弹窗（保留） -->
-      <el-dialog v-model="app.helpVisible" title="操作帮助" width="520px" append-to-body>
-        <div class="topnav__help" v-html="helpHtml" />
-        <template #footer>
-          <el-button type="primary" @click="app.helpVisible = false">知道了</el-button>
-        </template>
-      </el-dialog>
     </div>
+
+    <el-dialog v-model="app.helpVisible" title="操作帮助" width="520px" append-to-body>
+      <div class="topnav__help" v-html="helpHtml" />
+      <template #footer>
+        <el-button type="primary" @click="app.helpVisible = false">知道了</el-button>
+      </template>
+    </el-dialog>
   </header>
 </template>
 
@@ -57,55 +85,142 @@ const helpHtml = `
 .topnav {
   display: flex;
   align-items: center;
-  gap: var(--gap-lg);
+  gap: 16px;
   height: var(--topnav-height);
-  padding: 0 20px;
+  padding: 0 24px;
   background: #FFFFFF;
   border-bottom: 1px solid var(--border-lighter);
 }
+
+/* ---- 品牌 ---- */
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  flex: none;
 }
 .brand__icon {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: grid;
   place-items: center;
-  border-radius: 8px;
-  background: var(--brand);
-  color: #fff;
   flex-shrink: 0;
+  filter: drop-shadow(0 2px 6px rgba(37, 99, 235, 0.28));
 }
-.brand__text { display: flex; flex-direction: column; line-height: 1.2; }
 .brand__name {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: 0.02em;
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: 0.2px;
+  white-space: nowrap;
 }
-.brand__sub {
+.brand__badge {
   font-size: 11px;
-  color: var(--text-secondary);
-  letter-spacing: 0.04em;
-  margin-top: 2px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--brand);
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  line-height: 1.35;
 }
-.topnav__spacer { flex: 1; }
-.topnav__actions { display: flex; align-items: center; gap: 4px; }
-.topnav__icon-btn {
-  width: 36px;
-  height: 36px;
+
+/* ---- 右侧工具 ---- */
+.nav-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  margin-left: auto;
+}
+.nav-search {
+  width: 190px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  transition: 0.16s;
+}
+.nav-search:hover {
+  background: var(--border-light);
+}
+.nav-search__icon {
+  color: var(--muted);
+  flex: none;
+}
+.nav-search__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.nav-search__input::placeholder {
+  color: var(--muted-2);
+}
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--bg-subtle);
   display: grid;
   place-items: center;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  color: var(--text-secondary);
   cursor: pointer;
-  transition: background var(--duration-fast) ease, color var(--duration-fast) ease;
+  transition: 0.16s;
+  position: relative;
+  color: var(--ink-2);
+  flex: none;
 }
-.topnav__icon-btn:hover { background: var(--bg-subtle); color: var(--text-primary); }
+.icon-btn:hover {
+  background: var(--border-light);
+}
+
+/* ---- 运行状态灯 ---- */
+.run-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: default;
+  user-select: none;
+}
+.run-status__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+/* 演示模式：琥珀 */
+.run-status--mock {
+  color: #B45309;
+  background: #FEF3C7;
+  border: 1px solid #FDE68A;
+}
+/* 算法在线：绿 */
+.run-status--online {
+  color: #15803D;
+  background: #DCFCE7;
+  border: 1px solid #BBF7D0;
+}
+/* 离线 / 检测中：红灰 */
+.run-status--offline {
+  color: #B91C1C;
+  background: #FEE2E2;
+  border: 1px solid #FECACA;
+}
+
 .topnav__help {
   font-size: 14px;
   line-height: 1.8;
@@ -113,4 +228,9 @@ const helpHtml = `
   padding: 4px 6px;
 }
 .topnav__help ol { padding-left: 20px; margin: 6px 0; }
+
+/* 窄屏：搜索框收窄 */
+@media (max-width: 1279px) {
+  .nav-search { width: 150px; }
+}
 </style>

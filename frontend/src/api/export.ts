@@ -26,11 +26,11 @@ export function exportPdf(reportHtml: string, title: string): void {
   }
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
 <style>
-  body { font-family: 'PingFang SC','Microsoft YaHei',serif; margin: 48px; color: #1F2733; line-height: 1.8; }
+  body { font-family: 'PingFang SC','Microsoft YaHei',serif; margin: 48px; color: #1F2937; line-height: 1.8; }
   h1 { font-size: 24px; text-align: center; margin-bottom: 4px; }
-  .meta { text-align: center; color: #8A94A6; font-size: 14px; margin-bottom: 32px; }
-  h2 { font-size: 18px; margin: 24px 0 8px; color: #2563EB; }
-  .watermark { position: fixed; bottom: 24px; left: 0; right: 0; text-align: center; color: #8A94A6; font-size: 13px; }
+  .meta { text-align: center; color: #9CA3AF; font-size: 14px; margin-bottom: 32px; }
+  h2 { font-size: 18px; margin: 24px 0 8px; color: #3B82F6; }
+  .watermark { position: fixed; bottom: 24px; left: 0; right: 0; text-align: center; color: #9CA3AF; font-size: 13px; }
   @media print { .watermark { position: static; } }
 </style></head><body>${reportHtml}
 <div class="watermark">数据来源：国土空间规划真实图层数据</div>
@@ -82,8 +82,13 @@ export function doExport(format: ExportFormat, ctx: {
   result?: SelectionResponse
   weights?: Record<string, number>
   map?: { getCanvas: () => HTMLCanvasElement }
+  /** Word 报告附加数据源（见 reportDocx.ts ReportDocxSource） */
+  docxSource?: unknown
 }): void {
-  if (format === 'pdf' && ctx.reportHtml) {
+  if (format === 'docx' && ctx.docxSource) {
+    // 动态加载 docx 生成模块：库体积较大，按需分包，不拖累首屏
+    void import('./reportDocx').then(({ exportReportDocx }) => exportReportDocx(ctx.docxSource as never))
+  } else if (format === 'pdf' && ctx.reportHtml) {
     exportPdf(ctx.reportHtml, ctx.reportTitle ?? '选址报告')
   } else if (format === 'excel' && ctx.scenario && ctx.result && ctx.weights) {
     exportExcel(ctx.scenario, ctx.result, ctx.weights)
