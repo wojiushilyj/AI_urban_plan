@@ -282,12 +282,53 @@ with tab_map:
         center_lat = float(best_hq["centroid_lat"])
         center_lon = float(best_hq["centroid_lon"])
 
+    # 构建 Folium 地图（默认采用国内秒开的高德与 ArcGIS 镜像，彻底解决 CartoDB 境外 CDN 握手超时白屏问题）
     m = folium.Map(
         location=[center_lat, center_lon],
         zoom_start=13,
-        tiles="CartoDB positron",
+        tiles=None,
         control_scale=True,
     )
+
+    # 1. 高德矢量地图（默认首选，国内直连秒级加载，地名路网清晰）
+    folium.TileLayer(
+        tiles="http://wprd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}",
+        attr="高德地图 (AutoNavi)",
+        name="高德矢量地图 (国内秒开·默认)",
+        overlay=False,
+        control=True,
+        show=True,
+    ).add_to(m)
+
+    # 2. 高德卫星影像底图
+    folium.TileLayer(
+        tiles="http://wprd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=6&x={x}&y={y}&z={z}",
+        attr="高德影像 (AutoNavi)",
+        name="高德卫星影像",
+        overlay=False,
+        control=True,
+        show=False,
+    ).add_to(m)
+
+    # 3. ArcGIS 遥感影像
+    folium.TileLayer(
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attr="ArcGIS World Imagery",
+        name="ArcGIS 遥感影像",
+        overlay=False,
+        control=True,
+        show=False,
+    ).add_to(m)
+
+    # 4. CartoDB Positron 浅色底图（备用）
+    folium.TileLayer(
+        tiles="CartoDB positron",
+        attr="CartoDB",
+        name="CartoDB 极简底图 (备用)",
+        overlay=False,
+        control=True,
+        show=False,
+    ).add_to(m)
 
     # 绘制推荐地块图层
     hq_fg = folium.FeatureGroup(name="🏢 研发总部推荐地块 (B2)", show=True)
