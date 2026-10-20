@@ -20,6 +20,17 @@ class Settings(BaseSettings):
     DB_PATH: Path = ROOT_DIR / "data" / "app.db"
     SPATIALITE_ENABLED: bool = False  # 空间 SQL 需求超限时再开，默认用 GeoPandas 算
 
+    # ---- 空间数据库（PostgreSQL / PostGIS）----
+    POSTGIS_HOST: str = "117.72.210.60"
+    POSTGIS_PORT: int = 5432
+    POSTGIS_DB: str = "onemap_db"
+    POSTGIS_USER: str = "postgres"
+    POSTGIS_PASSWORD: str = "xinghekui2009"
+
+    @property
+    def POSTGIS_URL(self) -> str:
+        return f"postgresql+psycopg://{self.POSTGIS_USER}:{self.POSTGIS_PASSWORD}@{self.POSTGIS_HOST}:{self.POSTGIS_PORT}/{self.POSTGIS_DB}"
+
     # ---- 数据目录 ----
     DATA_RAW: Path = ROOT_DIR / "data" / "raw"
     DATA_PROCESSED: Path = ROOT_DIR / "data" / "processed"

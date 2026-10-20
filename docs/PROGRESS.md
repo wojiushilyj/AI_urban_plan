@@ -892,3 +892,42 @@ OSM 能画出来 ⇒ **WebGL / MapLibre / 页面 JS 全部正常**。
 - 按用户指定，将正式项目名称更新为“产址智脑-基于多源空间数据与AI多目标决策的工业用地智慧选址”，正文保留“产址智脑”简称。
 - 生成《1.产品解决方案模型和说明文档_产址智脑_项目名称更新版》DOCX及PDF，更新封面全称、正文首次定义、文档元数据与版本号V1.1；旧版保留。
 - 更名版仍为18页。完整重新渲染后逐页像素对比，仅封面和产品概述两页变化，已查看确认；其余16页与上版已验收页面完全一致，目录页码未改变。技术内容、模型图和业务源码未改动。
+
+---
+
+## 2026-10-20 技术栈全面升级：LangGraph 智能体 + PostGIS 空间数据库 + Streamlit 交互工作台
+
+### 背景与决策
+按照项目负责人指定的推荐技术路线，将系统架构深度升级为：
+1. **Agent 框架**：LangGraph（构建意图解析、PostGIS 检索、底线审查、五维量算、双方案比选、报告生成的 6 阶段循环决策流）；
+2. **空间数据库**：PostgreSQL 15 + PostGIS 3.4（接入远程数据库 `117.72.210.60:5432/onemap_db`，库内拥有 2,134 宗 `land_use_tuban` 现状用地空间图斑）；
+3. **空间数据计算**：Python（GeoPandas、Shapely、PyProj、Rasterio），基于 CGCS2000 / EPSG:4525 法定投影进行高精度空间量算；
+4. **交互与地图可视化**：Streamlit + Folium（快速高亮地块、绘制 300m/500m 卫生防护距离圈、展示总部与生产基地跨区通勤路线与比选雷达指标）；
+5. **业务深耕**：全面落地「医药制药项目选址需求」（重点实现 B2 研发总部与 M1/M0 生产基地的功能匹配，以及【方案A：集中连片】vs【方案B：分地块差异化布局】的量化比选）。
+
+### 本轮完成
+1. **PostGIS 服务层构建** (`backend/app/services/postgis_service.py`)：
+   - 实现远程 PostGIS 数据库连接管理与健康检查（`117.72.210.60:5432`）；
+   - 按国标用地分类编码（B2 `0902`/`0904`、M1 `100101`、M2 `100102`、高等院校 `080401`、医院 `080601`、物流 `110101`、供水排水 `1301`/`1302`）进行空间检索与 Polsby-Popper 紧凑度指标计算；
+   - 建立 EPSG:4525 配套设施投影坐标缓存，杜绝跨广域网循环请求延迟，距离量算毫秒级响应；
+   - 实现断网/离线环境下的自动本地 GeoPackage 容灾回落（Fallback）。
+2. **专业空间计算工具** (`backend/app/agent/spatial_tools.py`)：
+   - `audit_sanitary_and_redlines`：三区三线（生态红线、永久基本农田、城市蓝线）拓扑相交审查与卫生防护距离核验；
+   - `evaluate_pharma_parcel_5d`：城市规划、交通物流、产业与产学研协同、基础公用配套、建造成本五维打分；
+   - `compare_pharma_schemes`：方案 A（集中连片）与方案 B（分地块）的投资、管理、通勤指标定量测算。
+3. **LangGraph 选址智能体** (`backend/app/agent/langgraph_agent.py`)：
+   - 建立 `PharmaSiteState` 状态图，编排 6 大节点：`parse_requirements` -> `postgis_retrieval` -> `compliance_audit` -> `multicriteria_scoring` -> `scheme_synthesis` -> `generate_report` -> `END`；
+   - 自动生成结构严谨、符合规范的《医药制药产业项目选址规划论证报告》。
+4. **交互与地图可视化平台** (`streamlit_app.py` & `start_streamlit.bat`)：
+   - 构建现代玻璃拟态控制台与 KPI 统计卡；
+   - 集成 Folium 地图，青蓝色高亮 B2 总部、金橙色高亮 M1 基地、翠绿高亮方案 A 集中基地，动态叠加 300m/500m 卫生防护红圈与快速通勤连线；
+   - 提供方案 A 与方案 B 的并排对比视窗、报告在线阅读/Markdown 下载、智能体决策执行日志追踪。
+5. **FastAPI 服务端挂载与自动化测试** (`backend/app/routers/pharma_agent.py` & `scripts/test_langgraph_postgis.py`)：
+   - FastAPI 注册 `/api/agent/pharma/run`、`/api/agent/pharma/postgis/health`、`/api/agent/pharma/postgis/candidates` 接口；
+   - 编写自动化验证套件，PostGIS 连接、空间检索、LangGraph 端到端执行、FastAPI 路由挂载 4 大环节 100% 通过（PASS）。
+
+### 当前状态
+- 全套技术路线（LangGraph + PostGIS + Streamlit + Folium + GeoPandas）已顺利在项目中部署并全链路贯通；
+- 本地执行 `start_streamlit.bat` 即可启动 Streamlit 交互工作台；
+- 原有 FastAPI 服务同样兼容支持新的智能体路由。
+

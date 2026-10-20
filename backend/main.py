@@ -22,7 +22,7 @@ from starlette.exceptions import HTTPException
 
 from app.config import settings
 from app.db import init_db
-from app.routers import ai, layers, scenarios, site_selection
+from app.routers import ai, layers, pharma_agent, scenarios, site_selection
 
 
 @asynccontextmanager
@@ -69,6 +69,7 @@ app.include_router(scenarios.router, prefix="/api")
 app.include_router(site_selection.router, prefix="/api")
 app.include_router(layers.router, prefix="/api")
 app.include_router(ai.router, prefix="/api")
+app.include_router(pharma_agent.router, prefix="/api")
 
 # ---------------------------------------------------------------------------
 # 静态资源挂载（顺序敏感：必须先挂具体路径，最后挂根路径）
