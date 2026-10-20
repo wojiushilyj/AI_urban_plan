@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** 右侧面板（模块 6/7 容器）：分析结果 / 图表分析 / 报告导出 */
+/** 右侧面板（模块 6/7 容器）：分析结果 / 智能体决策流 / 图表分析 / 报告导出 */
 import { computed } from 'vue'
 import { useAppStore } from '../../store/app'
 import TabPanel from '../common/TabPanel.vue'
@@ -8,6 +8,7 @@ import RunProgress from '../result/RunProgress.vue'
 import ModelSummary from '../result/ModelSummary.vue'
 import ChartTabs from '../result/ChartTabs.vue'
 import ReportGenerator from '../report/ReportGenerator.vue'
+import AgentDecisionFlow from '../agent/AgentDecisionFlow.vue'
 import ScrollPanel from '../common/ScrollPanel.vue'
 
 const app = useAppStore()
@@ -22,6 +23,7 @@ const active = computed({
 
 const tabs = [
   { name: 'result', label: '分析结果' },
+  { name: 'agent', label: '智能体决策' },
   { name: 'chart', label: '图表分析' },
   { name: 'report', label: '报告导出' },
 ]
@@ -35,6 +37,11 @@ const tabs = [
           <RunProgress />
           <ModelSummary />
           <CandidateTable />
+        </ScrollPanel>
+      </template>
+      <template #agent>
+        <ScrollPanel height="100%">
+          <AgentDecisionFlow />
         </ScrollPanel>
       </template>
       <template #chart>

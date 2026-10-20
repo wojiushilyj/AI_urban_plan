@@ -103,5 +103,5 @@ export const useAiStore = defineStore('ai', () => {
     parseResult.value = null
   }
 
-  return { messages, thinking, parseResult, templates, parse, chat, pushProgress, clearParse }
+  return { messages, thinking, parseResult, templates, parse, chat, push, pushProgress, clearParse }
 })

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /**
- * AI 需求交互主面板（模块 2）：门类选择 + 选址偏好（含 AI 偏好学习页签）+ 选址助手对话卡 + 开始选址。
- * 形态对齐设计稿：左栏为扁平列表（无卡片外壳），对话卡为「头部 / 消息体 / 输入行」三段结构，
- * 「开始选址」抽为独立的 48px 胶囊主行动按钮（原型 .cta）。
+ * AI 需求交互主面板（模块 2）：
+ * 支持两种模式：
+ * 1. 经典多准则选址（门类选择 + 偏好滑动条 + 开始选址）
+ * 2. LangGraph 空间智能体（PostGIS 检索 + 三区三线审查 + 双方案比选）
  */
 import { nextTick, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -11,6 +12,7 @@ import { useScenarioStore } from '../../store/scenario'
 import { useConfigStore } from '../../store/config'
 import { useResultStore } from '../../store/result'
 import { useMapStore } from '../../store/map'
+import { useAgentStore } from '../../store/agent'
 import ChatMessage from './ChatMessage.vue'
 import ScenarioSwitcher from '../scenario/ScenarioSwitcher.vue'
 import PreferenceTabsCard from '../config/PreferenceTabsCard.vue'
@@ -21,6 +23,7 @@ const scenario = useScenarioStore()
 const config = useConfigStore()
 const result = useResultStore()
 const map = useMapStore()
+const agent = useAgentStore()
 const input = ref('')
 const messagesEl = ref<HTMLElement>()
 
@@ -43,21 +46,25 @@ async function applyParse(text: string): Promise<void> {
   for (const c of detail.constraints) {
     if (!c.required) config.constraints[c.id].enabled = enabledSet.has(c.id)
   }
-  // 需求中提到占地面积 → 记为用地规模目标（未提到则清空，不做面积匹配）
   config.targetAreaHa = pr.targetAreaHa ?? null
   result.reset()
   map.selectedRank = null
 }
 
-/** 回车发送：仅做需求解析与权重回显（对话区可见分析过程），不触发选址计算 */
+/** 回车发送：根据当前模式分流 */
 async function onSend(): Promise<void> {
   const text = input.value.trim()
-  if (!text || ai.thinking) return
+  if (!text || ai.thinking || agent.running) return
   input.value = ''
-  await applyParse(text)
+  if (agent.mode === 'langgraph') {
+    agent.request.query = text
+    await agent.run()
+  } else {
+    await applyParse(text)
+  }
 }
 
-/** 开始选址（主行动）：先把输入框中的需求发送给选址助手解析（对话区落库显示），再执行选址计算 */
+/** 开始经典多准则选址 */
 async function startSelection(): Promise<void> {
   if (!scenario.detail) return
   const text = input.value.trim()
@@ -73,12 +80,55 @@ async function startSelection(): Promise<void> {
   if (result.error) ElMessage.error(result.error)
   else ElMessage.success('选址计算完成，结果已渲染到地图与右侧面板')
 }
+
+/** 启动 LangGraph 空间智能体 */
+async function startAgentSelection(): Promise<void> {
+  const text = input.value.trim()
+  if (text) {
+    agent.request.query = text
+    input.value = ''
+  }
+  await agent.run()
+  if (agent.error) ElMessage.error(agent.error)
+  else ElMessage.success('LangGraph 智能体决策完成，双方案比选已展开')
+}
+
+/** 预设意图快捷填充 */
+function applyPreset(query: string, hqRange: [number, number], facRange: [number, number], buffer: number): void {
+  agent.request.query = query
+  agent.request.hq_min_ha = hqRange[0]
+  agent.request.hq_max_ha = hqRange[1]
+  agent.request.factory_min_ha = facRange[0]
+  agent.request.factory_max_ha = facRange[1]
+  agent.request.sanitary_buffer_m = buffer
+  ElMessage.info('已载入场景预设参数')
+}
 </script>
 
 <template>
   <div class="chat-panel">
-    <!-- 配置区：门类选择 + 偏好 / AI 学习 -->
-    <div class="chat-panel__config">
+    <!-- 模式切换分段开关 -->
+    <div class="mode-bar">
+      <button
+        type="button"
+        class="mode-btn"
+        :class="{ 'is-active': agent.mode === 'classic' }"
+        @click="agent.mode = 'classic'"
+      >
+        🎯 规划多准则选址
+      </button>
+      <button
+        type="button"
+        class="mode-btn"
+        :class="{ 'is-active': agent.mode === 'langgraph' }"
+        @click="agent.mode = 'langgraph'"
+      >
+        🤖 LangGraph 空间智能体
+      </button>
+    </div>
+
+    <!-- 1. 经典多准则选址配置区 -->
+    <div v-if="agent.mode === 'classic'" class="chat-panel__config">
       <div class="chat-panel__field">
         <div class="field-label">门类选择</div>
         <ScenarioSwitcher />
@@ -86,39 +136,114 @@ async function startSelection(): Promise<void> {
       <PreferenceTabsCard />
     </div>
 
-    <!-- 选址助手对话卡（原型 .chat）：弹性填充配置区之下的剩余空间，不留大块空白 -->
-    <div class="chat-card">
+    <!-- 2. LangGraph 智能体选址需求配置区 -->
+    <div v-else class="chat-panel__config agent-config-panel">
+      <div class="agent-chip-box">
+        <div class="field-label">🎯 快捷选址意图预设</div>
+        <div class="chip-group">
+          <button
+            type="button"
+            class="chip-btn"
+            @click="applyPreset(
+              '拟在桂林临桂区建设大型生物医药项目，包含B2研发总部与M1洁净生产基地，要求临近高校产学研平台并靠近货运干道，需开展集中连片与分地块方案比选。',
+              [1.0, 5.0],
+              [5.0, 20.0],
+              300
+            )"
+          >
+            💊 研发总部 + 生产基地双方案比选
+          </button>
+          <button
+            type="button"
+            class="chip-btn"
+            @click="applyPreset(
+              '拟选址原料药与现代中药制剂生产基地，需严格落实500米卫生防护距离，规避居民敏感点，优先靠近污水管网与给水主管线。',
+              [1.0, 4.0],
+              [10.0, 25.0],
+              500
+            )"
+          >
+            🧪 原料药发酵基地 (500m强防护)
+          </button>
+          <button
+            type="button"
+            class="chip-btn"
+            @click="applyPreset(
+              '重点布局高端生物医药研发总部与创新孵化平台，选用B2商务用地，要求高度协同高等医学教育院校与综合医院临床试验资源。',
+              [1.5, 6.0],
+              [3.0, 10.0],
+              300
+            )"
+          >
+            🔬 临床医药研发中心 (高校协同)
+          </button>
+        </div>
+      </div>
+
+      <div class="agent-sliders">
+        <div class="slider-row">
+          <span class="slider-label">总部面积 (B2):</span>
+          <span class="slider-val">{{ agent.request.hq_min_ha }} ~ {{ agent.request.hq_max_ha }} ha</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">生产基地 (M1):</span>
+          <span class="slider-val">{{ agent.request.factory_min_ha }} ~ {{ agent.request.factory_max_ha }} ha</span>
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">卫生安全隔离:</span>
+          <div class="radio-row">
+            <label class="radio-label">
+              <input v-model="agent.request.sanitary_buffer_m" type="radio" :value="300" />
+              300m (制剂厂房)
+            </label>
+            <label class="radio-label">
+              <input v-model="agent.request.sanitary_buffer_m" type="radio" :value="500" />
+              500m (发酵合成)
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 选址助手对话卡 -->
+    <div class="chat-card" :class="{ 'is-agent-card': agent.mode === 'langgraph' }">
       <div class="chat-head">
         <div class="chat-head__left">
           <AppIcon name="assistant" :size="28" />
-          <span class="chat-head__name">选址助手</span>
-          <span class="chat-head__badge">AI</span>
+          <span class="chat-head__name">{{ agent.mode === 'langgraph' ? 'LangGraph 选址智能体' : '选址助手' }}</span>
+          <span class="chat-head__badge">{{ agent.mode === 'langgraph' ? 'StateGraph' : 'AI' }}</span>
         </div>
-        <div class="chat-head__online"><i class="dot-on" />在线</div>
+        <div class="chat-head__online">
+          <i class="dot-on" />
+          {{ agent.mode === 'langgraph' ? 'PostGIS 在线' : '在线' }}
+        </div>
       </div>
 
       <div ref="messagesEl" class="chat-body">
         <ChatMessage v-for="m in ai.messages" :key="m.id" :msg="m" />
-        <div v-if="ai.thinking" class="chat-panel__thinking">
-          <span class="dot" /><span class="dot" /><span class="dot" /> 正在解析…
+        <div v-if="ai.thinking || agent.running" class="chat-panel__thinking">
+          <span class="dot" /><span class="dot" /><span class="dot" />
+          {{ agent.running ? '智能体正在执行 6 阶段循环决策流…' : '正在解析…' }}
         </div>
-        <div class="chat-hint">例：临桂区找 20 公顷连片工业用地。</div>
+        <div class="chat-hint">
+          {{ agent.mode === 'langgraph' ? '例：临桂区选址生物医药研发基地，需兼顾高校产学研协同与500m卫生防护。' : '例：临桂区找 20 公顷连片工业用地。' }}
+        </div>
       </div>
 
       <div class="chat-input">
-        <!-- 发送按钮已按用户要求移除：回车 = 发送需求给助手解析；「开始选址」= 发送需求并执行选址分析 -->
         <input
           v-model="input"
           class="chat-input__field"
           type="text"
-          placeholder="描述选址需求，回车发送…"
+          :placeholder="agent.mode === 'langgraph' ? '输入医药选址诉求，回车由智能体决策…' : '描述选址需求，回车发送…'"
           @keydown.enter="onSend"
         />
       </div>
     </div>
 
-    <!-- 主行动按钮（原型 .cta） -->
+    <!-- 主行动按钮 -->
     <button
+      v-if="agent.mode === 'classic'"
       class="cta"
       type="button"
       :disabled="result.running || ai.thinking"
@@ -126,6 +251,16 @@ async function startSelection(): Promise<void> {
     >
       <AppIcon name="play" :size="16" />
       <span>{{ result.running ? '选址计算中…' : '开始选址' }}</span>
+    </button>
+    <button
+      v-else
+      class="cta cta--agent"
+      type="button"
+      :disabled="agent.running"
+      @click="startAgentSelection"
+    >
+      <span class="cta-icon">🚀</span>
+      <span>{{ agent.running ? '智能体 6 阶段决策中…' : '启动 LangGraph 选址智能体' }}</span>
     </button>
   </div>
 </template>
@@ -137,10 +272,39 @@ async function startSelection(): Promise<void> {
   height: 100%;
   min-height: 0;
 }
-/*
- * 配置区（门类选择 + 偏好 / AI 学习）：
- * 可收缩 + 内部滚动，矮屏上优先压缩本区，保证对话卡与 CTA 不被挤没。
- */
+
+/* 顶部模式切换栏 */
+.mode-bar {
+  display: flex;
+  background: #E5E7EB;
+  padding: 3px;
+  border-radius: 8px;
+  margin: var(--panel-pad-left) var(--panel-pad-left) 8px;
+  gap: 2px;
+}
+.mode-btn {
+  flex: 1;
+  padding: 6px 4px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #4B5563;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  white-space: nowrap;
+}
+.mode-btn:hover {
+  color: #111827;
+}
+.mode-btn.is-active {
+  background: #FFFFFF;
+  color: #1C7D8C;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* 配置区 */
 .chat-panel__config {
   flex: 0 1 auto;
   min-height: 0;
@@ -149,7 +313,7 @@ async function startSelection(): Promise<void> {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: var(--panel-pad-left);
+  padding: 0 var(--panel-pad-left) 12px;
 }
 .chat-panel__field {
   display: flex;
@@ -157,14 +321,79 @@ async function startSelection(): Promise<void> {
   gap: 10px;
 }
 .field-label {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--ink);
 }
 
-/* ============ 对话卡（原型 .chat） ============ */
-/* 弹性填充配置区之下的剩余空间（基准 0：高度只取决于剩余空间，与消息条数无关），
-   「开始选址」稳定贴底、进度消息追加时上方卡片高度零变动 */
+/* LangGraph 专属配置小卡片 */
+.agent-config-panel {
+  gap: 10px;
+}
+.agent-chip-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.chip-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.chip-btn {
+  background: #FFFFFF;
+  border: 1px solid #D1D5DB;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 11px;
+  color: #374151;
+  text-align: left;
+  cursor: pointer;
+  line-height: 1.35;
+  transition: all 0.15s;
+}
+.chip-btn:hover {
+  background: #F0FDFA;
+  border-color: #14B8A6;
+  color: #0F766E;
+}
+.agent-sliders {
+  background: #FFFFFF;
+  border: 1px solid var(--border-lighter);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 11px;
+}
+.slider-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.slider-label {
+  color: #6B7280;
+  font-weight: 500;
+}
+.slider-val {
+  color: #111827;
+  font-weight: 700;
+}
+.radio-row {
+  display: flex;
+  gap: 8px;
+}
+.radio-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  cursor: pointer;
+  color: #374151;
+}
+
+/* 对话卡 */
 .chat-card {
   flex: 1 1 0;
   min-height: 220px;
@@ -175,6 +404,11 @@ async function startSelection(): Promise<void> {
   border: 1px solid var(--border-lighter);
   border-radius: var(--radius-card);
   overflow: hidden;
+  transition: border-color 0.2s;
+}
+.chat-card.is-agent-card {
+  border-color: #14B8A6;
+  box-shadow: 0 0 0 1px rgba(20, 184, 166, 0.15);
 }
 .chat-head {
   display: flex;
@@ -200,7 +434,7 @@ async function startSelection(): Promise<void> {
   font-size: 10px;
   font-weight: 700;
   color: #fff;
-  background: var(--brand);
+  background: #1C7D8C;
   padding: 2px 7px;
   border-radius: var(--radius-pill);
   line-height: 1.35;
@@ -231,7 +465,6 @@ async function startSelection(): Promise<void> {
   flex-direction: column;
   gap: 6px;
 }
-/* 需求示例提示（原型 .hint：白底描边，与灰底气泡区分） */
 .chat-hint {
   background: #fff;
   border: 1px solid var(--border-strong);
@@ -241,7 +474,6 @@ async function startSelection(): Promise<void> {
   line-height: 17px;
   color: var(--muted);
 }
-
 .chat-input {
   display: flex;
   align-items: center;
@@ -264,7 +496,7 @@ async function startSelection(): Promise<void> {
   color: var(--placeholder);
 }
 
-/* ============ 主行动按钮（原型 .cta） ============ */
+/* 主行动按钮 */
 .cta {
   flex: none;
   height: 48px;
@@ -289,8 +521,13 @@ async function startSelection(): Promise<void> {
   transform: translateY(-1px);
   box-shadow: 0 10px 24px rgba(37, 99, 235, 0.34);
 }
-.cta:active:not(:disabled) {
-  transform: translateY(0);
+.cta--agent {
+  background: #1C7D8C;
+  box-shadow: 0 6px 18px rgba(28, 125, 140, 0.28);
+}
+.cta--agent:hover:not(:disabled) {
+  background: #0F4C55;
+  box-shadow: 0 10px 24px rgba(28, 125, 140, 0.34);
 }
 .cta:disabled {
   opacity: 0.65;
