@@ -36,7 +36,9 @@ def check(name: str, cond: bool, extra: str = "") -> None:
 
 
 def main() -> int:
-    c = httpx.Client(base_url=BASE, timeout=120.0)
+    # trust_env=False：忽略 HTTP(S)_PROXY 环境变量，否则本机全局代理会把
+    # 127.0.0.1 也走代理，导致全部接口拿到代理的错误页而假失败。
+    c = httpx.Client(base_url=BASE, timeout=120.0, trust_env=False)
 
     print("\n--- 健康检查 ---")
     r = c.get("/health")

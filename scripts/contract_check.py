@@ -44,7 +44,9 @@ def has_keys(obj: dict, keys: list[str]) -> tuple[bool, str]:
 
 
 def main() -> int:
-    c = httpx.Client(base_url=BASE, timeout=120.0)
+    # trust_env=False：忽略 HTTP(S)_PROXY 环境变量，否则本机全局代理会把
+    # 127.0.0.1 也走代理，导致全部接口拿到代理的错误页而假失败。
+    c = httpx.Client(base_url=BASE, timeout=120.0, trust_env=False)
 
     print(f"\n目标：{BASE}（经 Vite 代理 → 后端）\n")
 
