@@ -29,6 +29,19 @@ from app.agent.langgraph_agent import pharma_site_agent
 from app.services.postgis_service import PHARMA_LAND_CODES, postgis_service
 
 # --------------------------------------------------------------------------- #
+# 本地 GeoJSON 业务图层高速缓存加载器
+# --------------------------------------------------------------------------- #
+@st.cache_data
+def get_geojson_layer_data(layer_id: str):
+    """缓存加载本地已处理好的 18 个法定规划 GeoJSON 矢量图层。"""
+    p = ROOT_DIR / "data" / "processed" / "geojson" / f"{layer_id}.geojson"
+    if p.exists():
+        with open(p, encoding="utf-8") as f:
+            return json.load(f)
+    return None
+
+
+# --------------------------------------------------------------------------- #
 # 页面基础配置
 # --------------------------------------------------------------------------- #
 st.set_page_config(
@@ -274,6 +287,42 @@ tab_map, tab_comparison, tab_report, tab_agent_log = st.tabs(
 with tab_map:
     st.markdown("#### 📍 医药制药候选地块空间分布与拓扑联动")
 
+    with st.expander("🗂️ 18个国土空间规划业务图层管理（点、线、面要素库展示说明）", expanded=False):
+        st.markdown(
+            "系统内置桂林临桂区全套 CGCS2000 法定规划图层（已转 EPSG:4326/4525），全部挂载至地图图层树。您可在地图右上角的 **图层控制器** 中自由勾选显示/隐藏任何图层："
+        )
+        c_l1, c_l2, c_l3 = st.columns(3)
+        with c_l1:
+            st.markdown("""
+            **🛑 底线管控（面/线）**
+            * 🛑 生态保护红线 (`eco-redline`, 5 宗面)
+            * 🌾 永久基本农田 (`perm-farmland`, 3544 宗面)
+            * 💧 城市蓝线水域 (`blue-line`, 118 处线面)
+            * 🟣 城镇开发边界 (`urban-boundary`, 1 圈控制线)
+            * 🌲 城市绿线 (`green-line`, 304 宗面)
+            * ⚡ 城市黄线市政 (`yellow-line`, 77 宗面)
+            """)
+        with c_l2:
+            st.markdown("""
+            **🏭 产业与用地底盘（面）**
+            * 🏭 控规工业用地基底 (`regulated-industrial`, 145 宗地块)
+            * 🏗️ 产业园区法定范围 (`industrial-park`, 4 处范围)
+            * 🏢 工业配套市政用地 (`municipal-land`, 81 宗面)
+            * 📋 总规工业用地 (`industrial-land`, 215 宗面)
+            """)
+        with c_l3:
+            st.markdown("""
+            **🛣️ 交通、公服与现状建设（点/线/面）**
+            * 🛣️ 道路路网拓扑 (`road-network`, 4054 条线)
+            * 🚗 高速出入口 (`highway-interchange`, 7 处点)
+            * 🚛 货运枢纽场站 (`freight-station`, 17 处点)
+            * 💼 生产性服务点位 (`prod-service-point`, 5 处点)
+            * 🏢 生产性服务业集聚区 (`prod-service-area`, 11 处面)
+            * 🏛️ 文物保护单位 (`cultural-relic`, 1 处点)
+            * 🏘️ 现状建筑分布 (`current-building`, 7851 栋面)
+            * 🏭 现状已开发工业用地 (`current-industrial-land`, 684 宗面)
+            """)
+
     # 构建 Folium 地图
     # 默认居中临桂区 [25.26, 110.28]
     center_lat = 25.26
@@ -330,76 +379,296 @@ with tab_map:
         show=False,
     ).add_to(m)
 
-    # 绘制推荐地块图层
-    hq_fg = folium.FeatureGroup(name="🏢 研发总部推荐地块 (B2)", show=True)
-    fac_fg = folium.FeatureGroup(name="🏭 生产基地推荐地块 (M1)", show=True)
-    uni_fg = folium.FeatureGroup(name="🌿 集中连片综合基地 (方案A)", show=True)
-    buffer_fg = folium.FeatureGroup(name="⚠️ 卫生防护隔离距离圈 (300m/500m)", show=True)
-    commute_fg = folium.FeatureGroup(name="↔️ 研发-生产跨区通勤连线", show=True)
-
-    # 1. 渲染研发总部地块
-    if best_hq and best_hq.get("geometry"):
+    # ----------------------------------------------------------------------- #
+    # 挂载 18 个国土空间规划业务图层（点、线、面要素库）
+    # ----------------------------------------------------------------------- #
+    # 1. 底线管控图层 (红线/农田/蓝线)
+    eco_data = get_geojson_layer_data("eco-redline")
+    if eco_data:
+        eco_fg = folium.FeatureGroup(name="🛑 [底线] 生态保护红线 (5宗·面)", show=True)
         folium.GeoJson(
-            best_hq["geometry"],
-            style_function=lambda x: {
-                "fillColor": "#1C7D8C",
-                "color": "#0F4C55",
-                "weight": 3,
-                "fillOpacity": 0.65,
-            },
-            tooltip=f"<b>【研发总部Top1】地块 #{best_hq['id']}</b><br>面积: {best_hq['area_ha']} ha<br>综合评分: {best_hq['scores']['total']} 分<br>代码: {best_hq['land_code']}",
-        ).add_to(hq_fg)
+            eco_data,
+            style_function=lambda x: {"color": "#E5484D", "fillColor": "#E5484D", "weight": 2.5, "fillOpacity": 0.45},
+            tooltip="生态保护红线 (一票否决·严禁开发)"
+        ).add_to(eco_fg)
+        eco_fg.add_to(m)
 
-        folium.Marker(
-            [best_hq["centroid_lat"], best_hq["centroid_lon"]],
-            popup=f"研发总部 #{best_hq['id']}",
-            icon=folium.Icon(color="blue", icon="briefcase", prefix="fa"),
-        ).add_to(hq_fg)
-
-    # 2. 渲染生产基地地块及卫生隔离圈
-    if best_fac and best_fac.get("geometry"):
+    blue_data = get_geojson_layer_data("blue-line")
+    if blue_data:
+        blue_fg = folium.FeatureGroup(name="💧 [底线] 城市蓝线水域 (118处·面)", show=True)
         folium.GeoJson(
-            best_fac["geometry"],
-            style_function=lambda x: {
-                "fillColor": "#E67E22",
-                "color": "#B95C00",
-                "weight": 3,
-                "fillOpacity": 0.65,
-            },
-            tooltip=f"<b>【生产基地Top1】地块 #{best_fac['id']}</b><br>面积: {best_fac['area_ha']} ha<br>综合评分: {best_fac['scores']['total']} 分<br>代码: {best_fac['land_code']}",
-        ).add_to(fac_fg)
+            blue_data,
+            style_function=lambda x: {"color": "#1971C2", "fillColor": "#228BE6", "weight": 1.5, "fillOpacity": 0.4},
+            tooltip="城市蓝线河湖水体管控区"
+        ).add_to(blue_fg)
+        blue_fg.add_to(m)
 
-        folium.Marker(
-            [best_fac["centroid_lat"], best_fac["centroid_lon"]],
-            popup=f"生产基地 #{best_fac['id']}",
-            icon=folium.Icon(color="orange", icon="cogs", prefix="fa"),
-        ).add_to(fac_fg)
-
-        # 卫生隔离缓冲圈 (半透明红色圆)
-        folium.Circle(
-            radius=float(sanitary_buffer),
-            location=[best_fac["centroid_lat"], best_fac["centroid_lon"]],
-            color="#E5484D",
-            fill=True,
-            fill_color="#E5484D",
-            fill_opacity=0.15,
-            weight=1.5,
-            dash_array="5, 5",
-            tooltip=f"GMP制药卫生防护隔离圈：{sanitary_buffer} 米",
-        ).add_to(buffer_fg)
-
-    # 3. 渲染集中连片地块 (方案A)
-    if best_uni and best_uni.get("geometry"):
+    farm_data = get_geojson_layer_data("perm-farmland")
+    if farm_data:
+        farm_fg = folium.FeatureGroup(name="🌾 [底线] 永久基本农田 (3544宗·面)", show=False)
         folium.GeoJson(
-            best_uni["geometry"],
-            style_function=lambda x: {
-                "fillColor": "#27AE60",
-                "color": "#196F3D",
-                "weight": 2.5,
-                "fillOpacity": 0.45,
-            },
-            tooltip=f"<b>【集中连片方案A】地块 #{best_uni['id']}</b><br>面积: {best_uni['area_ha']} ha<br>综合评分: {best_uni['scores']['total']} 分",
-        ).add_to(uni_fg)
+            farm_data,
+            style_function=lambda x: {"color": "#5C940D", "fillColor": "#82C91E", "weight": 1, "fillOpacity": 0.35},
+            tooltip="永久基本农田保护区"
+        ).add_to(farm_fg)
+        farm_fg.add_to(m)
+
+    # 2. 规划控制线图层 (开发边界/绿线/黄线)
+    ub_data = get_geojson_layer_data("urban-boundary")
+    if ub_data:
+        ub_fg = folium.FeatureGroup(name="🟣 [控制] 城镇开发边界 (1圈·线)", show=True)
+        folium.GeoJson(
+            ub_data,
+            style_function=lambda x: {"color": "#7950F2", "weight": 3, "fill": False, "dashArray": "6,4"},
+            tooltip="城镇开发边界线"
+        ).add_to(ub_fg)
+        ub_fg.add_to(m)
+
+    green_data = get_geojson_layer_data("green-line")
+    if green_data:
+        green_fg = folium.FeatureGroup(name="🌲 [控制] 城市绿线 (304宗·面)", show=False)
+        folium.GeoJson(
+            green_data,
+            style_function=lambda x: {"color": "#2B8A3E", "fillColor": "#2B8A3E", "weight": 1.2, "fillOpacity": 0.3},
+            tooltip="城市绿线生态公园"
+        ).add_to(green_fg)
+        green_fg.add_to(m)
+
+    yellow_data = get_geojson_layer_data("yellow-line")
+    if yellow_data:
+        yellow_fg = folium.FeatureGroup(name="⚡ [控制] 城市黄线市政走廊 (77宗·面)", show=False)
+        folium.GeoJson(
+            yellow_data,
+            style_function=lambda x: {"color": "#E67700", "fillColor": "#FAB005", "weight": 1.5, "fillOpacity": 0.35},
+            tooltip="城市黄线市政公用设施控制线"
+        ).add_to(yellow_fg)
+        yellow_fg.add_to(m)
+
+    # 3. 产业与用地底盘
+    park_data = get_geojson_layer_data("industrial-park")
+    if park_data:
+        park_fg = folium.FeatureGroup(name="🏗️ [产业] 产业园区法定边界 (4处·面)", show=True)
+        folium.GeoJson(
+            park_data,
+            style_function=lambda x: {"color": "#0C8599", "fillColor": "#15AABF", "weight": 2.5, "fillOpacity": 0.15, "dashArray": "5,5"},
+            tooltip="重点产业园区范围"
+        ).add_to(park_fg)
+        park_fg.add_to(m)
+
+    reg_data = get_geojson_layer_data("regulated-industrial")
+    if reg_data:
+        reg_fg = folium.FeatureGroup(name="🏭 [产业] 控规工业用地基底 (145宗·面)", show=True)
+        folium.GeoJson(
+            reg_data,
+            style_function=lambda x: {"color": "#3B5BDB", "fillColor": "#4C6EF5", "weight": 1.2, "fillOpacity": 0.25},
+            tooltip="控规工业用地基础图斑"
+        ).add_to(reg_fg)
+        reg_fg.add_to(m)
+
+    mun_data = get_geojson_layer_data("municipal-land")
+    if mun_data:
+        mun_fg = folium.FeatureGroup(name="🏢 [产业] 工业配套市政用地 (81宗·面)", show=True)
+        folium.GeoJson(
+            mun_data,
+            style_function=lambda x: {"color": "#862E9C", "fillColor": "#AE3EC9", "weight": 1.5, "fillOpacity": 0.35},
+            tooltip="供水/供电/污水处理设施用地"
+        ).add_to(mun_fg)
+        mun_fg.add_to(m)
+
+    ind_data = get_geojson_layer_data("industrial-land")
+    if ind_data:
+        ind_fg = folium.FeatureGroup(name="📋 [产业] 总规工业用地 (215宗·面)", show=False)
+        folium.GeoJson(
+            ind_data,
+            style_function=lambda x: {"color": "#495057", "fillColor": "#ADB5BD", "weight": 1, "fillOpacity": 0.2},
+            tooltip="总规工业用地范围"
+        ).add_to(ind_fg)
+        ind_fg.add_to(m)
+
+    # 4. 交通路网与物流枢纽节点 (线/点)
+    road_data = get_geojson_layer_data("road-network")
+    if road_data:
+        road_fg = folium.FeatureGroup(name="🛣️ [交通] 道路路网拓扑 (4054条·线)", show=True)
+        folium.GeoJson(
+            road_data,
+            style_function=lambda x: {"color": "#475569", "weight": 1.2, "opacity": 0.75},
+            tooltip="城市主次干道路网"
+        ).add_to(road_fg)
+        road_fg.add_to(m)
+
+    hw_data = get_geojson_layer_data("highway-interchange")
+    if hw_data:
+        hw_fg = folium.FeatureGroup(name="🚗 [交通] 高速公路出入口 (7处·点)", show=True)
+        for f in hw_data.get("features", []):
+            geom = f.get("geometry") or {}
+            c = geom.get("coordinates")
+            if geom.get("type") == "Point" and isinstance(c, (list, tuple)) and len(c) >= 2:
+                folium.CircleMarker(
+                    location=[c[1], c[0]],
+                    radius=6,
+                    color="#FFFFFF",
+                    fill=True,
+                    fill_color="#1E40AF",
+                    fill_opacity=0.95,
+                    weight=2,
+                    tooltip=f"高速互通立交出入口: {f.get('properties', {}).get('Name', '高速互通')}"
+                ).add_to(hw_fg)
+        hw_fg.add_to(m)
+
+    fs_data = get_geojson_layer_data("freight-station")
+    if fs_data:
+        fs_fg = folium.FeatureGroup(name="🚛 [交通] 货运物流枢纽站场 (17处·面)", show=True)
+        folium.GeoJson(
+            fs_data,
+            style_function=lambda x: {"color": "#B45309", "fillColor": "#F59E0B", "weight": 1.5, "fillOpacity": 0.45},
+            tooltip="货运物流枢纽站场"
+        ).add_to(fs_fg)
+        fs_fg.add_to(m)
+
+    # 5. 公共服务设施 (点/面)
+    psp_data = get_geojson_layer_data("prod-service-point")
+    if psp_data:
+        psp_fg = folium.FeatureGroup(name="💼 [公服] 生产性服务点位 (5处·点)", show=True)
+        for f in psp_data.get("features", []):
+            geom = f.get("geometry") or {}
+            c = geom.get("coordinates")
+            if geom.get("type") == "Point" and isinstance(c, (list, tuple)) and len(c) >= 2:
+                folium.CircleMarker(
+                    location=[c[1], c[0]],
+                    radius=5,
+                    color="#FFFFFF",
+                    fill=True,
+                    fill_color="#059669",
+                    fill_opacity=0.9,
+                    weight=1.5,
+                    tooltip=f"生产性服务点位: {f.get('properties', {}).get('Name', '生产服务')}"
+                ).add_to(psp_fg)
+        psp_fg.add_to(m)
+
+    psa_data = get_geojson_layer_data("prod-service-area")
+    if psa_data:
+        psa_fg = folium.FeatureGroup(name="🏢 [公服] 生产性服务业集聚区 (11处·面)", show=True)
+        folium.GeoJson(
+            psa_data,
+            style_function=lambda x: {"color": "#087F5B", "fillColor": "#12B886", "weight": 1.5, "fillOpacity": 0.3},
+            tooltip="生产性服务业集聚区"
+        ).add_to(psa_fg)
+        psa_fg.add_to(m)
+
+    cr_data = get_geojson_layer_data("cultural-relic")
+    if cr_data:
+        cr_fg = folium.FeatureGroup(name="🏛️ [公服] 文物保护单位 (1处·面)", show=True)
+        folium.GeoJson(
+            cr_data,
+            style_function=lambda x: {"color": "#6D28D9", "fillColor": "#8B5CF6", "weight": 2, "fillOpacity": 0.4},
+            tooltip="文物保护单位及建控地带"
+        ).add_to(cr_fg)
+        cr_fg.add_to(m)
+
+    # 6. 现状建设图层 (面)
+    bldg_data = get_geojson_layer_data("current-building")
+    if bldg_data:
+        bldg_fg = folium.FeatureGroup(name="🏘️ [现状] 现状建筑轮廓分布 (7851栋·面)", show=False)
+        folium.GeoJson(
+            bldg_data,
+            style_function=lambda x: {"color": "#D97706", "fillColor": "#F59E0B", "weight": 0.6, "fillOpacity": 0.3},
+            tooltip="现状建筑轮廓"
+        ).add_to(bldg_fg)
+        bldg_fg.add_to(m)
+
+    cur_ind_data = get_geojson_layer_data("current-industrial-land")
+    if cur_ind_data:
+        cur_ind_fg = folium.FeatureGroup(name="🏭 [现状] 现状已开发工业用地 (684宗·面)", show=False)
+        folium.GeoJson(
+            cur_ind_data,
+            style_function=lambda x: {"color": "#78350F", "fillColor": "#92400E", "weight": 1, "fillOpacity": 0.25},
+            tooltip="现状已建设工业用地"
+        ).add_to(cur_ind_fg)
+        cur_ind_fg.add_to(m)
+
+    # ----------------------------------------------------------------------- #
+    # 智能体推荐选址结果（置顶高亮图层）
+    # ----------------------------------------------------------------------- #
+    hq_fg = folium.FeatureGroup(name="⭐【推荐】研发总部候选地块 (B2商务)", show=True)
+    fac_fg = folium.FeatureGroup(name="⭐【推荐】生产基地候选地块 (M1工业)", show=True)
+    uni_fg = folium.FeatureGroup(name="⭐【推荐】集中连片综合基地 (方案A)", show=True)
+    buffer_fg = folium.FeatureGroup(name="⚠️【管控】卫生防护隔离距离圈 (300m/500m)", show=True)
+    commute_fg = folium.FeatureGroup(name="↔️【联动】研发-生产跨区通勤连线", show=True)
+
+    # 1. 渲染研发总部候选地块 (Top 1~5 阶梯展示)
+    hq_list = evaluated.get("hq", [])[:5]
+    for idx, p in enumerate(hq_list):
+        if p.get("geometry"):
+            is_top1 = (idx == 0)
+            folium.GeoJson(
+                p["geometry"],
+                style_function=lambda x, top=is_top1: {
+                    "fillColor": "#1C7D8C" if top else "#74C0FC",
+                    "color": "#0F4C55" if top else "#1864AB",
+                    "weight": 3.5 if top else 1.8,
+                    "fillOpacity": 0.65 if top else 0.4,
+                },
+                tooltip=f"<b>【研发总部#{idx+1}】地块 #{p['id']}</b><br>面积: {p['area_ha']} ha<br>综合评分: {p['scores']['total']} 分<br>代码: {p['land_code']}",
+            ).add_to(hq_fg)
+
+            if is_top1 and p.get("centroid_lat"):
+                folium.Marker(
+                    [p["centroid_lat"], p["centroid_lon"]],
+                    popup=f"研发总部最优选址 #{p['id']}",
+                    icon=folium.Icon(color="blue", icon="briefcase", prefix="fa"),
+                ).add_to(hq_fg)
+
+    # 2. 渲染生产基地候选地块 (Top 1~5 阶梯展示) 及卫生隔离圈
+    fac_list = evaluated.get("factory", [])[:5]
+    for idx, p in enumerate(fac_list):
+        if p.get("geometry"):
+            is_top1 = (idx == 0)
+            folium.GeoJson(
+                p["geometry"],
+                style_function=lambda x, top=is_top1: {
+                    "fillColor": "#E67E22" if top else "#FFD43B",
+                    "color": "#B95C00" if top else "#E67700",
+                    "weight": 3.5 if top else 1.8,
+                    "fillOpacity": 0.65 if top else 0.4,
+                },
+                tooltip=f"<b>【生产基地#{idx+1}】地块 #{p['id']}</b><br>面积: {p['area_ha']} ha<br>综合评分: {p['scores']['total']} 分<br>代码: {p['land_code']}",
+            ).add_to(fac_fg)
+
+            if is_top1 and p.get("centroid_lat"):
+                folium.Marker(
+                    [p["centroid_lat"], p["centroid_lon"]],
+                    popup=f"生产基地最优选址 #{p['id']}",
+                    icon=folium.Icon(color="orange", icon="cogs", prefix="fa"),
+                ).add_to(fac_fg)
+
+                # 卫生隔离缓冲圈 (半透明红色圆)
+                folium.Circle(
+                    radius=float(sanitary_buffer),
+                    location=[p["centroid_lat"], p["centroid_lon"]],
+                    color="#E5484D",
+                    fill=True,
+                    fill_color="#E5484D",
+                    fill_opacity=0.15,
+                    weight=1.5,
+                    dash_array="5, 5",
+                    tooltip=f"GMP制药卫生防护隔离圈：{sanitary_buffer} 米",
+                ).add_to(buffer_fg)
+
+    # 3. 渲染集中连片地块 (方案A Top 1~3)
+    uni_list = evaluated.get("unified", [])[:3]
+    for idx, p in enumerate(uni_list):
+        if p.get("geometry"):
+            is_top1 = (idx == 0)
+            folium.GeoJson(
+                p["geometry"],
+                style_function=lambda x, top=is_top1: {
+                    "fillColor": "#27AE60" if top else "#8CE99A",
+                    "color": "#196F3D" if top else "#2B8A3E",
+                    "weight": 3.0 if top else 1.5,
+                    "fillOpacity": 0.55 if top else 0.35,
+                },
+                tooltip=f"<b>【集中连片方案A#{idx+1}】地块 #{p['id']}</b><br>面积: {p['area_ha']} ha<br>综合评分: {p['scores']['total']} 分",
+            ).add_to(uni_fg)
 
     # 4. 绘制跨区通勤路线示意
     if best_hq and best_fac:
