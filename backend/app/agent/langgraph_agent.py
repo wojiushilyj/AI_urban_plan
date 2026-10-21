@@ -130,8 +130,8 @@ def node_postgis_retrieval(state: PharmaSiteState) -> Dict[str, Any]:
     )
 
     logs.append(
-        f"  [OK] PostGIS 检索完成：发现研发总部(B2)备选 {len(hq_parcels)} 宗、"
-        f"生产基地(M1)备选 {len(factory_parcels)} 宗、集中连片大宗产业用地 {len(unified_parcels)} 宗。"
+        f"  [OK] PostGIS 临桂区空间检索完成：发现研发总部(B2)备选 {len(hq_parcels)} 宗、"
+        f"生产基地(M1)备选 {len(factory_parcels)} 宗、集中连片大宗产业用地 {len(unified_parcels)} 宗（全部严格限定于桂林市临桂区规划范围）。"
     )
 
     return {

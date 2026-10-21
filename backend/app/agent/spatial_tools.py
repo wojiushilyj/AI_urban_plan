@@ -29,6 +29,12 @@ def audit_sanitary_and_redlines(
     reasons = []
     passed = True
 
+    # 0. 桂林市临桂区法定空间规划范围审查
+    c_pt = geom.centroid
+    if not (109.90 <= c_pt.x <= 110.25 and 25.00 <= c_pt.y <= 25.40):
+        passed = False
+        reasons.append("地块不在桂林市临桂区法定规划研究区范围内")
+
     # 1. 本地硬约束图层审查 (在 EPSG:4525 投影下精确比对)
     try:
         # 生态保护红线

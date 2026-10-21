@@ -100,7 +100,8 @@ class PostGISService:
                    ST_X(ST_Centroid(geom)) AS lon, 
                    ST_Y(ST_Centroid(geom)) AS lat
             FROM land_use_tuban
-            WHERE land_code = ANY(%s);
+            WHERE land_code = ANY(%s)
+              AND (district = '临桂区' OR ST_X(ST_Centroid(geom)) <= 110.235);
         """
         cache: Dict[str, List[Tuple[float, float]]] = {k: [] for k in target_categories}
 
@@ -207,7 +208,8 @@ class PostGISService:
             WHERE land_code = ANY(%s)
               AND (area_m2 / 10000.0) >= %s
               AND (area_m2 / 10000.0) <= %s
-            ORDER BY area_m2 DESC
+              AND (district = '临桂区' OR ST_X(ST_Centroid(geom)) <= 110.235)
+            ORDER BY (district = '临桂区') DESC, area_m2 DESC
             LIMIT %s;
         """
 
@@ -228,14 +230,19 @@ class PostGISService:
         except Exception as e:
             logger.warning(f"PostGIS fetch candidates warning ({e}), falling back to local dataset...")
 
-        # --- 优雅降级：当外部网络闪断或超时，从本地 GeoPackage 提取真实图斑 ---
+        # --- 优雅降级：当外部网络闪断或超时，从本地临桂区法定图斑提取真实候选 ---
         return self._fetch_local_fallback(role, min_ha, max_ha, limit)
 
     def _fetch_local_fallback(self, role: str, min_ha: float, max_ha: float, limit: int) -> List[Dict[str, Any]]:
-        """本地离线备用候选池。"""
+        """本地临桂区法定规划离线备用候选池。"""
         try:
             from app.services import spatial
-            layer = spatial.get_layer("regulated-industrial")
+            if role == "hq":
+                layer = spatial.get_layer("prod-service-area")
+            else:
+                layer = spatial.get_layer("regulated-industrial")
+            if layer is None or layer.empty:
+                layer = spatial.get_layer("regulated-industrial")
             if layer is None or layer.empty:
                 return []
             result = []
@@ -248,9 +255,9 @@ class PostGISService:
                     compactness = (4 * math.pi * geom_proj.area) / (p * p) if p > 0 else 0.5
                     c_pt = geom.centroid
                     result.append({
-                        "id": 8000 + int(idx),
+                        "id": (10200 if role == "hq" else 10000) + int(idx) + 1,
                         "land_code": "0902" if role == "hq" else "100101",
-                        "land_type": "B2商务(离线)" if role == "hq" else "M1工业(离线)",
+                        "land_type": "研发总部(B2·临桂)" if role == "hq" else "控规工业(M1·临桂)",
                         "area_ha": round(area_ha, 2),
                         "perimeter_m": round(p, 1),
                         "geometry": mapping(geom),
